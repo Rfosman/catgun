@@ -2,14 +2,22 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gato Aventurero vs Zombies - ¡Explosiones!</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gato Aventurero vs Zombies - Canvas Táctil</title>
 
 <style>
-body{
-    margin:0;
-    overflow:hidden;
-    background:#87CEEB;
+*{
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none; /* Desactiva gestos nativos del móvil como zoom o scroll */
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #111;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -17,18 +25,29 @@ body{
     font-family: sans-serif;
 }
 
-canvas{
-    display:block;
-    background:#87CEEB;
-    border:4px solid #2e2e2e;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+#game-container {
+    width: 100%;
+    max-width: 1000px;
+    aspect-ratio: 2 / 1;
+    position: relative;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #87CEEB;
+    border: 3px solid #333;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 </style>
 </head>
 
 <body>
 
-<canvas id="game" width="1000" height="500"></canvas>
+<div id="game-container">
+    <canvas id="game" width="1000" height="500"></canvas>
+</div>
 
 <script>
 const canvas = document.getElementById("game");
@@ -59,22 +78,71 @@ const camera = {
     width: canvas.width
 };
 
-// CONTROL DE TECLAS
+// ESTADO DE CONTROLES (Teclado y Táctil unificados)
 const keys = {};
 
+// CONFIGURACIÓN DE BOTONES EN CANVAS (Coordenadas virtuales del canvas de 1000x500)
+const touchButtons = {
+    left:   { x: 80,  y: 420, radius: 40, active: false, label: "◀", action: "ArrowLeft" },
+    right:  { x: 190, y: 420, radius: 40, active: false, label: "▶", action: "ArrowRight" },
+    jump:   { x: 810, y: 420, radius: 40, active: false, label: "0", action: "0", title: "SALTAR" },
+    shoot:  { x: 920, y: 420, radius: 40, active: false, label: "2", action: "2", title: "DISPARAR" }
+};
+
+// 1. SOPORTE TECLADO (PC)
 document.addEventListener("keydown", (e) => {
-    if (e.key) {
-        keys[e.key] = true;
-    }
+    if (e.key) keys[e.key] = true;
 });
 
 document.addEventListener("keyup", (e) => {
-    if (e.key) {
-        keys[e.key] = false;
-    }
+    if (e.key) keys[e.key] = false;
 });
 
-// PLATAFORMAS DEL ESCENARIO
+// 2. SOPORTE TÁCTIL INTEGRADO EN CANVAS
+// Traduce la coordenada de la pantalla real a la coordenada virtual (1000x500) del canvas
+function getCanvasTouchCoords(touch) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top) * scaleY
+    };
+}
+
+function handleTouches(e) {
+    e.preventDefault();
+    
+    // Apagar todas las acciones de botones táctiles antes de recalcular
+    for (const key in touchButtons) {
+        touchButtons[key].active = false;
+        keys[touchButtons[key].action] = false;
+    }
+
+    // Comprobar cada dedo activo en la pantalla
+    for (let i = 0; i < e.touches.length; i++) {
+        const coords = getCanvasTouchCoords(e.touches[i]);
+        
+        for (const key in touchButtons) {
+            const btn = touchButtons[key];
+            // Distancia matemática entre el dedo y el centro del botón circular
+            const dist = Math.hypot(coords.x - btn.x, coords.y - btn.y);
+            
+            if (dist < btn.radius) {
+                btn.active = true;
+                keys[btn.action] = true; // Activa la tecla correspondiente
+            }
+        }
+    }
+}
+
+// Eventos de pantalla táctil
+canvas.addEventListener("touchstart", handleTouches, { passive: false });
+canvas.addEventListener("touchmove", handleTouches, { passive: false });
+canvas.addEventListener("touchend", handleTouches, { passive: false });
+
+
+// PLATAFORMAS
 const platforms = [
     {x: 0, y: 450, width: 3000, height: 50}, 
     {x: 300, y: 350, width: 250, height: 20},
@@ -85,7 +153,6 @@ const platforms = [
     {x: 2100, y: 250, width: 150, height: 200}
 ];
 
-// ENEMIGOS, BALAS Y PARTÍCULAS (Explosiones)
 const enemies = [];
 const bullets = [];
 const particles = [];
@@ -101,9 +168,8 @@ function spawnZombies() {
 }
 spawnZombies();
 
-// Crear explosión de partículas en una posición (x, y)
 function createExplosion(x, y) {
-    const particleCount = 20; // Número de partículas por explosión
+    const particleCount = 20;
     for (let i = 0; i < particleCount; i++) {
         const angle = Math.random() * Math.PI * 2;
         const speed = 1 + Math.random() * 5;
@@ -113,15 +179,15 @@ function createExplosion(x, y) {
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
             size: 3 + Math.random() * 4,
-            color: Math.random() > 0.5 ? "#4a8a3b" : "#ff3333", // Mezcla de sangre zombie (verde) y fuego de plasma (rojo)
+            color: Math.random() > 0.5 ? "#4a8a3b" : "#ff3333",
             alpha: 1,
-            decay: 0.02 + Math.random() * 0.03 // Velocidad a la que desaparece la partícula
+            decay: 0.02 + Math.random() * 0.03
         });
     }
 }
 
 function updatePlayer() {
-    // Movimiento horizontal (Flechas Izquierda / Derecha)
+    // Movimiento horizontal
     if (keys["ArrowLeft"]) {
         player.vx -= player.acceleration;
         player.facing = "left";
@@ -132,14 +198,12 @@ function updatePlayer() {
         player.vx *= player.friction;
     }
 
-    // Límites de velocidad
     if (player.vx > player.maxSpeed) player.vx = player.maxSpeed;
     if (player.vx < -player.maxSpeed) player.vx = -player.maxSpeed;
     if (Math.abs(player.vx) < 0.1) player.vx = 0;
 
-    // SALTO: Activo con la tecla "0" (Cero) o "ArrowUp" (Flecha Arriba)
+    // Salto
     const wantsToJump = keys["0"] || keys["ArrowUp"];
-    
     if (wantsToJump && player.onGround) {
         player.vy = player.jumpPower;
         player.onGround = false;
@@ -147,7 +211,6 @@ function updatePlayer() {
 
     player.vy += GRAVITY;
 
-    // Colisiones
     player.x += player.vx;
     handleCollisions("x");
 
@@ -155,18 +218,16 @@ function updatePlayer() {
     player.onGround = false;
     handleCollisions("y");
 
-    // Límite izquierdo del escenario
     if (player.x < 0) {
         player.x = 0;
         player.vx = 0;
     }
 
-    // Caída al vacío (Reinicio)
     if (player.y > canvas.height) {
         resetGame();
     }
 
-    // SISTEMA DE DISPARO: Activado con la tecla "2"
+    // Disparo
     if (player.shootCooldown > 0) {
         player.shootCooldown--;
     }
@@ -176,7 +237,6 @@ function updatePlayer() {
         const bulletSpeed = 12;
         const bulletDirection = player.facing === "right" ? 1 : -1;
         
-        // Ajustamos la salida de la bala exactamente desde la punta de la pistola
         const bulletX = player.facing === "right" ? player.x + 43 : player.x + 2;
         const bulletY = player.y + 21;
 
@@ -189,10 +249,9 @@ function updatePlayer() {
             active: true
         });
         
-        player.shootCooldown = 15; // Retardo entre disparos
+        player.shootCooldown = 15;
     }
 
-    // Movimiento de la Cámara (Scroll lateral)
     const targetCamX = player.x - canvas.width / 3;
     camera.x += (targetCamX - camera.x) * 0.1;
     if (camera.x < 0) camera.x = 0;
@@ -229,7 +288,6 @@ function updateBullets() {
         const b = bullets[i];
         b.x += b.vx;
 
-        // Choque con plataformas (se destruye sin explosión de zombie)
         for (const p of platforms) {
             if (
                 b.x < p.x + p.width &&
@@ -242,7 +300,6 @@ function updateBullets() {
             }
         }
 
-        // Salir de pantalla
         if (b.x < camera.x || b.x > camera.x + canvas.width) {
             b.active = false;
         }
@@ -257,7 +314,6 @@ function updateEnemies() {
     for (let i = enemies.length - 1; i >= 0; i--) {
         const z = enemies[i];
         
-        // Movimiento de patrulla
         z.x += z.vx;
         if (z.x < z.minX) {
             z.x = z.minX;
@@ -267,7 +323,6 @@ function updateEnemies() {
             z.vx = -z.vx;
         }
 
-        // Colisión con el Jugador
         if (
             player.x < z.x + z.width &&
             player.x + player.width > z.x &&
@@ -278,7 +333,6 @@ function updateEnemies() {
             return;
         }
 
-        // Colisión con balas e Impacto explosivo
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (
@@ -287,24 +341,21 @@ function updateEnemies() {
                 b.y < z.y + z.height &&
                 b.y + b.height > z.y
             ) {
-                // Crear explosión en el centro del zombie
                 createExplosion(z.x + z.width / 2, z.y + z.height / 2);
-
-                enemies.splice(i, 1); // El zombie muere
-                bullets.splice(j, 1); // La bala desaparece
+                enemies.splice(i, 1);
+                bullets.splice(j, 1);
                 break;
             }
         }
     }
 }
 
-// Actualizar las partículas de la explosión
 function updateParticles() {
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.alpha -= p.decay; // Desvanecimiento gradual
+        p.alpha -= p.decay;
 
         if (p.alpha <= 0) {
             particles.splice(i, 1);
@@ -318,22 +369,19 @@ function resetGame() {
     player.vx = 0;
     player.vy = 0;
     bullets.length = 0;
-    particles.length = 0; // Limpiar explosiones anteriores
+    particles.length = 0;
     spawnZombies();
 }
 
 function drawBackground() {
-    // Cielo
     ctx.fillStyle = "#87CEEB";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Sol con paralaje
     ctx.fillStyle = "#FFD700";
     ctx.beginPath();
     ctx.arc(800 - camera.x * 0.1, 80, 40, 0, Math.PI * 2);
     ctx.fill();
 
-    // Nubes blancas
     ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
     const cloudOffset = -camera.x * 0.25;
     
@@ -347,12 +395,8 @@ function drawBackground() {
 function drawPlatforms() {
     for (const p of platforms) {
         const renderX = p.x - camera.x;
-
-        // Estructura de tierra
         ctx.fillStyle = "#7A4B23";
         ctx.fillRect(renderX, p.y, p.width, p.height);
-
-        // Césped verde brillante
         ctx.fillStyle = "#5A8F3D";
         ctx.fillRect(renderX, p.y, p.width, 6);
     }
@@ -364,14 +408,12 @@ function drawPlayer() {
 
     ctx.save();
     
-    // Girar dibujo según dirección
     if (player.facing === "left") {
         ctx.translate(x + player.width / 2, y + player.height / 2);
         ctx.scale(-1, 1);
         ctx.translate(-(x + player.width / 2), -(y + player.height / 2));
     }
 
-    // Cola del gato
     ctx.strokeStyle = "#ff9900";
     ctx.lineWidth = 5;
     ctx.beginPath();
@@ -379,17 +421,14 @@ function drawPlayer() {
     ctx.lineTo(x - 10, y + 15);
     ctx.stroke();
 
-    // Cuerpo
     ctx.fillStyle = "#ff9900";
     ctx.fillRect(x + 10, y + 18, 22, 22);
 
-    // Cabeza
     ctx.fillStyle = "#ffb347";
     ctx.beginPath();
     ctx.arc(x + 22, y + 12, 12, 0, Math.PI * 2);
     ctx.fill();
 
-    // Orejas
     ctx.beginPath();
     ctx.moveTo(x + 12, y + 5);
     ctx.lineTo(x + 16, y - 8);
@@ -402,19 +441,16 @@ function drawPlayer() {
     ctx.lineTo(x + 34, y + 4);
     ctx.fill();
 
-    // Ojo
     ctx.fillStyle = "black";
     ctx.beginPath();
     ctx.arc(x + 27, y + 10, 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Nariz
     ctx.fillStyle = "pink";
     ctx.beginPath();
     ctx.arc(x + 31, y + 14, 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Bigotes
     ctx.strokeStyle = "black";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -423,17 +459,15 @@ function drawPlayer() {
     ctx.moveTo(x + 32, y + 14); ctx.lineTo(x + 40, y + 17);
     ctx.stroke();
 
-    // Botas
     ctx.fillStyle = "#5A381E";
     ctx.fillRect(x + 10, y + 40, 8, 10);
     ctx.fillRect(x + 25, y + 40, 8, 10);
 
-    // Pistola de Plasma
     ctx.fillStyle = "#555";
     ctx.fillRect(x + 28, y + 18, 15, 6);
     ctx.fillStyle = "#333";
     ctx.fillRect(x + 26, y + 20, 5, 8);
-    ctx.fillStyle = "#ff3333"; // Láser rojo de apuntado
+    ctx.fillStyle = "#ff3333";
     ctx.fillRect(x + 38, y + 19, 6, 2);
 
     ctx.restore();
@@ -451,27 +485,22 @@ function drawEnemies() {
             ctx.translate(-(x + z.width / 2), -(y + z.height / 2));
         }
 
-        // Cuerpo zombie
         ctx.fillStyle = "#2e5c1e";
         ctx.fillRect(x + 10, y + 15, 20, 25);
 
-        // Cabeza zombie
         ctx.fillStyle = "#4a8a3b";
         ctx.beginPath();
         ctx.arc(x + 20, y + 8, 10, 0, Math.PI * 2);
         ctx.fill();
 
-        // Ojo hambriento (Rojo)
         ctx.fillStyle = "red";
         ctx.beginPath();
         ctx.arc(x + 24, y + 6, 2.5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Brazos estirados
         ctx.fillStyle = "#4a8a3b";
         ctx.fillRect(x + 20, y + 18, 18, 6);
 
-        // Pantalón roto
         ctx.fillStyle = "#1b2d42";
         ctx.fillRect(x + 10, y + 40, 8, 10);
         ctx.fillRect(x + 22, y + 40, 8, 10);
@@ -481,7 +510,7 @@ function drawEnemies() {
 }
 
 function drawBullets() {
-    ctx.fillStyle = "#ff3333"; // Balas de plasma rojas bien visibles
+    ctx.fillStyle = "#ff3333";
     for (const b of bullets) {
         ctx.fillRect(b.x - camera.x, b.y, b.width, b.height);
     }
@@ -497,6 +526,44 @@ function drawParticles() {
     }
 }
 
+// DIBUJAR LOS BOTONES TÁCTILES TRANSPARENTES
+function drawTouchControls() {
+    // Comprobar si estamos en un dispositivo táctil (para no ensuciar la pantalla en PC si no se quiere)
+    // Opcional: si quieres que se vean SIEMPRE, quita la condición. De momento los dejamos visibles siempre.
+    
+    ctx.save();
+    
+    for (const key in touchButtons) {
+        const btn = touchButtons[key];
+        
+        // Círculo base del botón (Transparencia adaptativa según si está pulsado o no)
+        ctx.fillStyle = btn.active ? "rgba(255, 255, 255, 0.6)" : "rgba(255, 255, 255, 0.25)";
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+        ctx.lineWidth = 3;
+        
+        ctx.beginPath();
+        ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        
+        // Letra o Símbolo del botón (0, 2, Flechas)
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.font = "bold 28px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(btn.label, btn.x, btn.y + 2); // Pequeño ajuste para centrar
+        
+        // Texto superior explicativo ("SALTAR", "DISPARAR")
+        if (btn.title) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            ctx.font = "bold 13px Arial";
+            ctx.fillText(btn.title, btn.x, btn.y - btn.radius - 12);
+        }
+    }
+    
+    ctx.restore();
+}
+
 function gameLoop() {
     updatePlayer();
     updateBullets();
@@ -509,8 +576,11 @@ function gameLoop() {
     drawPlatforms();
     drawBullets();
     drawEnemies();
-    drawParticles(); // Dibujar explosiones sobre los enemigos y el escenario
+    drawParticles();
     drawPlayer();
+    
+    // Pinta los botones encima de todo
+    drawTouchControls();
 
     requestAnimationFrame(gameLoop);
 }
