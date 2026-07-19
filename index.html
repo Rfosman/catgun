@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Gato Aventurero: La fiebre del Gatifuli</title>
 
 <style>
@@ -22,16 +22,18 @@ body {
     justify-content: center;
     align-items: center;
     height: 100vh;
+    height: -webkit-fill-available; /* Ajuste para iOS */
     font-family: 'Arial', sans-serif;
 }
 
 #game-container {
     width: 100vw;
     height: 100vh;
+    height: -webkit-fill-available;
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 5px;
+    position: relative;
 }
 
 canvas {
@@ -40,9 +42,23 @@ canvas {
     max-height: 100%;
     aspect-ratio: 2 / 1;
     background: #222;
-    border: 4px solid #333;
-    border-radius: 8px;
+    border: 2px solid #333;
     box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+}
+
+/* Botón flotante para pantalla completa */
+#fullscreen-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 9999;
 }
 </style>
 </head>
@@ -50,12 +66,36 @@ canvas {
 <body>
 
 <div id="game-container">
+    <button id="fullscreen-btn">Fullscreen ⛶</button>
     <canvas id="game" width="1000" height="500"></canvas>
 </div>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const container = document.getElementById("game-container");
+const fsBtn = document.getElementById("fullscreen-btn");
+
+// Lógica de Pantalla Completa
+fsBtn.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+        container.requestFullscreen?.().catch(err => {
+            console.log(`Error al activar pantalla completa: ${err.message}`);
+        });
+        container.webkitRequestFullscreen?.(); // Soporte para Safari/iOS
+    } else {
+        document.exitFullscreen?.();
+        document.webkitExitFullscreen?.();
+    }
+});
+
+// Ocultar botón si ya se está en pantalla completa
+document.addEventListener("fullscreenchange", () => {
+    fsBtn.style.display = document.fullscreenElement ? "none" : "block";
+});
+document.addEventListener("webkitfullscreenchange", () => {
+    fsBtn.style.display = document.webkitFullscreenElement ? "none" : "block";
+});
 
 const GRAVITY = 0.6;
 const GAME_HEIGHT = 400; 
@@ -88,19 +128,18 @@ const camera = {
 
 const keys = {};
 
-// BOTONES TÁCTILES ABAJO (Radio reducido a 44px)
+// BOTONES TÁCTILES ABAJO (44px)
 const touchButtons = {
     left:   { radius: 44, active: false, label: "◀", action: "ArrowLeft" },
-    jump:   { radius: 44, active: false, label: "▲", action: "ArrowUp" }, // Ahora en medio para saltar
+    jump:   { radius: 44, active: false, label: "▲", action: "ArrowUp" }, 
     right:  { radius: 44, active: false, label: "▶", action: "ArrowRight" },
-    shoot:  { radius: 44, active: false, label: "D", action: "2" }       // Letra D y sin títulos
+    shoot:  { radius: 44, active: false, label: "D", action: "2" }       
 };
 
 function updateButtonPositions() {
     const w = canvas.width;
     const centerY = GAME_HEIGHT + 50; 
     
-    // Distribución agrupada tipo cruceta a la izquierda
     touchButtons.left.x = 75;
     touchButtons.left.y = centerY;
     
@@ -110,7 +149,6 @@ function updateButtonPositions() {
     touchButtons.right.x = 275;
     touchButtons.right.y = centerY;
     
-    // Disparar solo en el lado derecho
     touchButtons.shoot.x = w - 90;
     touchButtons.shoot.y = centerY;
 }
@@ -177,7 +215,6 @@ function spawnObjects() {
     bullets.length = 0;
     particles.length = 0;
     
-    // Zombis
     enemies.push(
         { x: 400, y: 200, width: 40, height: 50, vx: 1.5, minX: 300, maxX: 510 },
         { x: 1050, y: 80, width: 40, height: 50, vx: 1.2, minX: 950, maxX: 1210 },
@@ -185,7 +222,6 @@ function spawnObjects() {
         { x: 1800, y: 220, width: 40, height: 50, vx: 2, minX: 1700, maxX: 1960 }
     );
 
-    // Monedas (Gatifulis)
     const coinPositions = [
         {x: 150, y: 280}, {x: 420, y: 180}, {x: 750, y: 120},
         {x: 1080, y: 70}, {x: 1470, y: 130}, {x: 1850, y: 200},
@@ -249,8 +285,7 @@ function updatePlayer() {
     if (player.vx < -player.maxSpeed) player.vx = -player.maxSpeed;
     if (Math.abs(player.vx) < 0.1) player.vx = 0;
 
-    // Acepta tanto el cero (antiguo) como la flecha arriba/tecla arriba de PC
-    if ((keys["0"] || keys["ArrowUp"]) && player.onGround) {
+    if (keys["ArrowUp"] && player.onGround) {
         player.vy = player.jumpPower;
         player.onGround = false;
     }
@@ -298,7 +333,6 @@ function handleCollisions(axis) {
 function updateObjects() {
     if (gameOverTimer > 0) return; 
 
-    // Balas
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i]; b.x += b.vx;
         for (const p of platforms) {
@@ -307,7 +341,6 @@ function updateObjects() {
         if (b.x < camera.x || b.x > camera.x + canvas.width || !b.active) bullets.splice(i, 1);
     }
 
-    // Zombis
     for (let i = enemies.length - 1; i >= 0; i--) {
         const z = enemies[i]; z.x += z.vx;
         if (z.x < z.minX || z.x > z.maxX) z.vx = -z.vx;
@@ -326,7 +359,6 @@ function updateObjects() {
         }
     }
 
-    // Gatifulis (Monedas)
     for (let i = gatifulis.length - 1; i >= 0; i--) {
         const c = gatifulis[i];
         if (player.x < c.x + c.width && player.x + player.width > c.x && player.y < c.y + c.height && player.y + player.height > c.y) {
@@ -336,7 +368,6 @@ function updateObjects() {
         }
     }
 
-    // Partículas
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= p.decay;
         if (p.alpha <= 0) particles.splice(i, 1);
@@ -474,7 +505,6 @@ function drawEnemies() {
     }
 }
 
-// PANEL DE MANDOS INFERIOR EVOLUCIONADO
 function drawTouchPanel() {
     ctx.save();
     ctx.fillStyle = "#151515";
