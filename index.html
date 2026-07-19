@@ -59,7 +59,6 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const container = document.getElementById("game-container");
 
-// CÁLCULO DINÁMICO DEL ESPACIO
 function resetHeight() {
     let vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -70,6 +69,17 @@ window.addEventListener('orientationchange', () => setTimeout(resetHeight, 200))
 
 const GRAVITY = 0.6;
 const GAME_HEIGHT = 400; 
+
+// ESCENARIO (Definido arriba para usarlo en el respawn seguro)
+const platforms = [
+    {x: 0, y: 350, width: 3000, height: 50}, 
+    {x: 300, y: 250, width: 250, height: 20},
+    {x: 650, y: 180, width: 200, height: 20},
+    {x: 950, y: 130, width: 300, height: 20},
+    {x: 1350, y: 200, width: 250, height: 20},
+    {x: 1700, y: 270, width: 300, height: 20},
+    {x: 2100, y: 180, width: 150, height: 220}
+];
 
 // JUGADOR
 const player = {
@@ -82,7 +92,7 @@ const player = {
     acceleration: 0.8,
     friction: 0.85, 
     maxSpeed: 6,
-    jumpPower: -14,
+    jumpPower: -13.5,
     onGround: false,
     facing: "right", 
     shootCooldown: 0,
@@ -95,7 +105,7 @@ const player = {
 const camera = { x: 0, width: canvas.width };
 const keys = {};
 
-// ESTRUCTURA DEL JOYSTICK ANALÓGICO
+// JOYSTICK ANALÓGICO
 const joystick = {
     startX: 0,      
     startY: 0,
@@ -114,7 +124,6 @@ const actionButtons = {
     shoot:  { radius: 36, active: false, label: "D", action: "2", x: 0, y: 0 }       
 };
 
-// Botón de pantalla completa
 const fsButton = { x: 930, y: 25, width: 50, height: 30 };
 
 function updateControlPositions() {
@@ -202,27 +211,28 @@ canvas.addEventListener("touchend", (e) => {
     e.preventDefault();
     for (let i = 0; i < e.changedTouches.length; i++) {
         const touch = e.changedTouches[i];
+        
         if (joystick.active && touch.identifier === joystick.touchId) {
             joystick.active = false;
             joystick.touchId = null;
             keys["ArrowLeft"] = false;
             keys["ArrowRight"] = false;
-            keys["ArrowUp"] = false;
         }
+        
         const coords = getCanvasTouchCoords(touch);
         for (const key in actionButtons) {
             const btn = actionButtons[key];
-            if (Math.hypot(coords.x - btn.x, coords.y - btn.y) < btn.radius || e.touches.length === 0) {
+            if (Math.hypot(coords.x - btn.x, coords.y - btn.y) < btn.radius) {
                 btn.active = false;
                 keys[btn.action] = false;
             }
         }
     }
+    
     if (e.touches.length === 0) {
         joystick.active = false;
         keys["ArrowLeft"] = false;
         keys["ArrowRight"] = false;
-        keys["ArrowUp"] = false;
         for (const key in actionButtons) {
             actionButtons[key].active = false;
             keys[actionButtons[key].action] = false;
@@ -230,7 +240,7 @@ canvas.addEventListener("touchend", (e) => {
     }
 }, { passive: false });
 
-// INTERPRETACIÓN INTELIGENTE DE ÁNGULOS EN EL JOYSTICK
+// INTERPRETACIÓN DEL JOYSTICK
 function processJoystick() {
     if (!joystick.active) return;
 
@@ -238,56 +248,29 @@ function processJoystick() {
     const deltaY = joystick.currentY - joystick.startY;
     const distance = Math.hypot(deltaX, deltaY);
 
-    // Si no sale de la zona muerta, limpiamos comandos analógicos de dirección
     if (distance < joystick.deadzone) {
         keys["ArrowLeft"] = false;
         keys["ArrowRight"] = false;
-        keys["ArrowUp"] = false;
         return;
     }
 
-    // Calculamos el ángulo en radianes (-PI a PI). 
-    // -PI/2 es arriba del todo, 0 es derecha completa, PI o -PI es izquierda completa.
     const angle = Math.atan2(deltaY, deltaX);
 
-    // 1. EVALUAR MOVIMIENTO HORIZONTAL (Ángulos laterales amplios)
-    // Derecha: entre -75º y +75º aproximadamente
-    if (angle > -Math.PI * 0.42 && angle < Math.PI * 0.42) {
+    if (angle > -Math.PI * 0.4 && angle < Math.PI * 0.4) {
         keys["ArrowRight"] = true;
         keys["ArrowLeft"] = false;
     } 
-    // Izquierda: entre 105º y 180º o -180º y -105º
-    else if (angle > Math.PI * 0.58 || angle < -Math.PI * 0.58) {
+    else if (angle > Math.PI * 0.6 || angle < -Math.PI * 0.6) {
         keys["ArrowLeft"] = true;
         keys["ArrowRight"] = false;
     } 
-    // Si está muy vertical centrado, cancela movimiento horizontal
     else {
         keys["ArrowLeft"] = false;
         keys["ArrowRight"] = false;
     }
 
-    // 2. EVALUAR SALTO (Cualquier posición superior del stick: entre -20º y -160º)
-    if (angle > -Math.PI * 0.88 && angle < -Math.PI * 0.12) {
-        keys["ArrowUp"] = true;
-    } else {
-        // Solo desactiva el salto del joystick si el botón táctil derecho de saltar no está presionado
-        if (!actionButtons.jump.active) {
-            keys["ArrowUp"] = false;
-        }
-    }
+    // El joystick izquierdo solo mueve, el salto se deja al botón ▲ para evitar conflictos directos
 }
-
-// ESCENARIO Y OBJETOS
-const platforms = [
-    {x: 0, y: 350, width: 3000, height: 50}, 
-    {x: 300, y: 250, width: 250, height: 20},
-    {x: 650, y: 180, width: 200, height: 20},
-    {x: 950, y: 130, width: 300, height: 20},
-    {x: 1350, y: 200, width: 250, height: 20},
-    {x: 1700, y: 270, width: 300, height: 20},
-    {x: 2100, y: 180, width: 150, height: 220}
-];
 
 const enemies = [];
 const bullets = [];
@@ -316,15 +299,15 @@ function spawnObjects() {
 spawnObjects();
 
 function createExplosion(x, y, colorType) {
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 12; i++) {
         const angle = Math.random() * Math.PI * 2;
-        const speed = 1 + Math.random() * 4;
+        const speed = 1 + Math.random() * 3;
         particles.push({
             x: x, y: y,
             vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-            size: 3 + Math.random() * 3,
+            size: 3 + Math.random() * 2,
             color: colorType === "coin" ? "#FFD700" : (Math.random() > 0.5 ? "#4a8a3b" : "#ff3333"),
-            alpha: 1, decay: 0.03
+            alpha: 1, decay: 0.04
         });
     }
 }
@@ -332,101 +315,180 @@ function createExplosion(x, y, colorType) {
 function handleDamage() {
     if (player.invulnerableFrames > 0 || gameOverTimer > 0) return;
     player.lives--;
+    
     if (player.lives <= 0) {
-        gameOverTimer = 120; player.lives = 5; player.gatifulis = 0;
-        player.x = 100; player.y = 100; player.vx = 0; player.vy = 0;
-        camera.x = 0; spawnObjects(); return;
+        gameOverTimer = 120; 
+        player.lives = 5; 
+        player.gatifulis = 0;
+        player.x = 100; 
+        player.y = 100; 
+        player.vx = 0; 
+        player.vy = 0;
+        camera.x = 0; 
+        spawnObjects(); 
+        return;
     }
-    player.invulnerableFrames = 60; player.x = Math.max(0, player.x - 100);
-    player.y = 50; player.vx = 0; player.vy = 0;
+    
+    player.invulnerableFrames = 60;
+    // Respawn seguro en el eje X estable
+    player.x = Math.max(100, player.x - 150);
+    player.y = 100;
+    player.vx = 0; 
+    player.vy = 0;
+}
+
+function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
 }
 
 function updatePlayer() {
     if (gameOverTimer > 0) return; 
     if (player.invulnerableFrames > 0) player.invulnerableFrames--;
 
-    if (keys["ArrowLeft"]) { player.vx -= player.acceleration; player.facing = "left"; }
-    else if (keys["ArrowRight"]) { player.vx += player.acceleration; player.facing = "right"; }
-    else { player.vx *= player.friction; }
+    // Movimiento
+    if (keys["ArrowLeft"] || keys["a"] || keys["A"]) { 
+        player.vx -= player.acceleration; 
+        player.facing = "left"; 
+    }
+    else if (keys["ArrowRight"] || keys["d"] || keys["D"]) { 
+        player.vx += player.acceleration; 
+        player.facing = "right"; 
+    }
+    else { 
+        player.vx *= player.friction; 
+    }
 
     if (player.vx > player.maxSpeed) player.vx = player.maxSpeed;
     if (player.vx < -player.maxSpeed) player.vx = -player.maxSpeed;
     if (Math.abs(player.vx) < 0.1) player.vx = 0;
 
-    if (keys["ArrowUp"] && player.onGround) { player.vy = player.jumpPower; player.onGround = false; }
-    player.vy += GRAVITY; player.x += player.vx;
-    handleCollisions("x"); player.y += player.vy;
-    player.onGround = false; handleCollisions("y");
-
-    if (player.x < 0) { player.x = 0; player.vx = 0; }
-    if (player.y > GAME_HEIGHT) handleDamage();
-
-    if (player.shootCooldown > 0) player.shootCooldown--;
-    if (keys["2"] && player.shootCooldown === 0) {
-        bullets.push({
-            x: player.facing === "right" ? player.x + 43 : player.x + 2,
-            y: player.y + 21,
-            vx: player.facing === "right" ? 12 : -12,
-            width: 10, height: 6, active: true
-        });
-        player.shootCooldown = 15;
+    // Salto
+    if (keys["ArrowUp"] || keys["w"] || keys["W"]) {
+        if (player.onGround) {
+            player.vy = player.jumpPower;
+            player.onGround = false;
+        }
     }
-    camera.x += (player.x - canvas.width / 3 - camera.x) * 0.1;
-    if (camera.x < 0) camera.x = 0;
-}
 
-function handleCollisions(axis) {
+    player.vy += GRAVITY;
+
+    // --- COLISIÓN EJE X ---
+    player.x += player.vx;
     for (const p of platforms) {
-        if (player.x < p.x + p.width && player.x + player.width > p.x && player.y < p.y + p.height && player.y + player.height > p.y) {
-            if (axis === "x") {
-                if (player.vx > 0) player.x = p.x - player.width;
-                else if (player.vx < 0) player.x = p.x + p.width;
-                player.vx = 0;
-            } else if (axis === "y") {
-                if (player.vy > 0) { player.y = p.y - player.height; player.vy = 0; player.onGround = true; }
-                else if (player.vy < 0) { player.y = p.y + p.height; player.vy = 0; }
+        if (checkCollision(player, p)) {
+            if (player.vx > 0) player.x = p.x - player.width;
+            else if (player.vx < 0) player.x = p.x + p.width;
+            player.vx = 0;
+        }
+    }
+
+    // --- COLISIÓN EJE Y ---
+    player.y += player.vy;
+    player.onGround = false;
+    for (const p of platforms) {
+        if (checkCollision(player, p)) {
+            if (player.vy > 0) {
+                player.y = p.y - player.height;
+                player.vy = 0;
+                player.onGround = true;
+            } else if (player.vy < 0) {
+                player.y = p.y + p.height;
+                player.vy = 0;
             }
         }
     }
+
+    // Límites de pantalla y abismo
+    if (player.x < 0) { player.x = 0; player.vx = 0; }
+    
+    // Red de seguridad absoluta contra caídas infinitas
+    if (player.y > GAME_HEIGHT + 60) {
+        handleDamage();
+    }
+
+    // Disparos
+    if (player.shootCooldown > 0) player.shootCooldown--;
+    if ((keys["2"] || keys["f"] || keys["F"]) && player.shootCooldown === 0) {
+        bullets.push({
+            x: player.facing === "right" ? player.x + player.width : player.x - 10,
+            y: player.y + 22,
+            vx: player.facing === "right" ? 11 : -11,
+            width: 12, height: 6, active: true
+        });
+        player.shootCooldown = 18;
+    }
+
+    // Suavizado de cámara
+    camera.x += (player.x - canvas.width / 3 - camera.x) * 0.08;
+    if (camera.x < 0) camera.x = 0;
 }
 
 function updateObjects() {
     if (gameOverTimer > 0) return; 
+
+    // Balas
     for (let i = bullets.length - 1; i >= 0; i--) {
-        const b = bullets[i]; b.x += b.vx;
+        const b = bullets[i]; 
+        b.x += b.vx;
+        
+        let hitWall = false;
         for (const p of platforms) {
-            if (b.x < p.x + p.width && b.x + b.width > p.x && b.y < p.y + p.height && b.y + b.height > p.y) b.active = false;
+            if (checkCollision(b, p)) hitWall = true;
         }
-        if (b.x < camera.x || b.x > camera.x + canvas.width || !b.active) bullets.splice(i, 1);
+        if (b.x < camera.x || b.x > camera.x + canvas.width || !b.active || hitWall) {
+            bullets.splice(i, 1);
+        }
     }
+
+    // Enemigos
     for (let i = enemies.length - 1; i >= 0; i--) {
-        const z = enemies[i]; z.x += z.vx;
+        const z = enemies[i]; 
+        z.x += z.vx;
         if (z.x < z.minX || z.x > z.maxX) z.vx = -z.vx;
-        if (player.x < z.x + z.width && player.x + player.width > z.x && player.y < z.y + z.height && player.y + player.height > z.y) {
-            handleDamage(); return; 
+
+        // Daño al jugador
+        if (checkCollision(player, z)) {
+            handleDamage();
+            return; 
         }
+
+        // Muerte del enemigo
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
-            if (b.x < z.x + z.width && b.x + b.width > z.x && b.y < z.y + z.height && b.y + b.height > z.y) {
+            if (checkCollision(b, z)) {
                 createExplosion(z.x + z.width/2, z.y + z.height/2, "zombie");
-                enemies.splice(i, 1); bullets.splice(j, 1); break;
+                enemies.splice(i, 1); 
+                bullets.splice(j, 1); 
+                break;
             }
         }
     }
+
+    // Monedas / Gatifulis
     for (let i = gatifulis.length - 1; i >= 0; i--) {
         const c = gatifulis[i];
-        if (player.x < c.x + c.width && player.x + player.width > c.x && player.y < c.y + c.height && player.y + player.height > c.y) {
+        if (checkCollision(player, c)) {
             createExplosion(c.x + c.width/2, c.y + c.height/2, "coin");
-            player.gatifulis++; gatifulis.splice(i, 1);
+            player.gatifulis++; 
+            gatifulis.splice(i, 1);
         }
     }
+
+    // Partículas
     for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i]; p.x += p.vx; p.y += p.vy; p.alpha -= p.decay;
+        const p = particles[i]; 
+        p.x += p.vx; 
+        p.y += p.vy; 
+        p.alpha -= p.decay;
         if (p.alpha <= 0) particles.splice(i, 1);
     }
 }
 
 function drawInterface() {
+    // Vidas
     for (let i = 0; i < 5; i++) {
         const hX = 30 + i * 35; const hY = 25;
         ctx.fillStyle = i < player.lives ? "#ff9900" : "#555"; 
@@ -440,6 +502,8 @@ function drawInterface() {
             ctx.fillStyle = "pink"; ctx.fillRect(hX - 1, hY + 2, 2, 2);
         }
     }
+
+    // Contador Monedas
     const mX = canvas.width - 240; const mY = 25;
     ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "#DAA520"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(mX, mY, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -447,6 +511,7 @@ function drawInterface() {
     ctx.fillStyle = "white"; ctx.font = "bold 20px Courier New"; ctx.textAlign = "left";
     ctx.fillText(`x ${String(player.gatifulis).padStart(3, '0')}`, mX + 20, mY + 7);
 
+    // Botón Fullscreen
     ctx.fillStyle = "#333"; ctx.strokeStyle = "#ff9900"; ctx.lineWidth = 2;
     ctx.fillRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
     ctx.strokeRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
@@ -454,7 +519,6 @@ function drawInterface() {
     ctx.fillText("⛶ FULL", fsButton.x + 25, fsButton.y + 9);
 
     if (gameOverTimer > 0) {
-        gameOverTimer--;
         ctx.fillStyle = "rgba(0, 0, 0, 0.75)"; ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 44px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText("¡GAME OVER!", canvas.width / 2, GAME_HEIGHT / 2);
@@ -532,16 +596,11 @@ function drawTouchPanel() {
     const baseCenterX = joystick.active ? joystick.startX : joystick.defaultX;
     const baseCenterY = joystick.active ? joystick.startY : joystick.defaultY;
 
-    // 1. Base del Joystick
     ctx.fillStyle = "rgba(40, 40, 40, 0.7)";
     ctx.strokeStyle = joystick.active ? "#ff9900" : "#555";
     ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(baseCenterX, baseCenterY, joystick.baseRadius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(baseCenterX, baseCenterY, joystick.baseRadius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
-    // 2. Pomo del Joystick
     let stickX = baseCenterX;
     let stickY = baseCenterY;
 
@@ -554,15 +613,12 @@ function drawTouchPanel() {
     }
 
     ctx.fillStyle = joystick.active ? "#ff9900" : "#888";
-    ctx.beginPath();
-    ctx.arc(stickX, stickY, 20, 0, Math.PI * 2); 
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(stickX, stickY, 20, 0, Math.PI * 2); ctx.fill();
 
-    // DIBUJAR BOTONES DERECHOS
     for (const key in actionButtons) {
         const btn = actionButtons[key];
         ctx.fillStyle = btn.active ? "#444" : "#252525";
-        ctx.strokeStyle = btn.active ? "#ff9900" : "#555";
+        ctx.strokeStyle = btn.active ? "#555" : "#333";
         ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.fillStyle = btn.active ? "#ff9900" : "#bbb";
@@ -574,23 +630,34 @@ function drawTouchPanel() {
 
 function gameLoop() {
     gameFrame++;
-    processJoystick(); 
-    updatePlayer();
-    updateObjects();
+    
+    if (gameOverTimer > 0) {
+        gameOverTimer--;
+    } else {
+        processJoystick(); 
+        updatePlayer();
+        updateObjects();
+    }
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBackground();
     drawPlatforms();
     drawGatifulis();
+    
     ctx.fillStyle = "#ff3333";
     for (const b of bullets) ctx.fillRect(b.x - camera.x, b.y, b.width, b.height);
+    
     drawEnemies();
+    
     for (const p of particles) {
         ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
         ctx.fillRect(p.x - camera.x - p.size/2, p.y - p.size/2, p.size, p.size); ctx.restore();
     }
+    
     drawPlayer();
     drawInterface(); 
     drawTouchPanel();
+    
     requestAnimationFrame(gameLoop);
 }
 
