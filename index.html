@@ -13,52 +13,79 @@
     touch-action: none; 
 }
 
-body {
+html, body {
     margin: 0;
     padding: 0;
     overflow: hidden;
     background: #1a1a1a;
+    width: 100%;
+    /* Solución definitiva para el alto real en móviles */
+    height: 100vh;
+    height: calc(var(--vh, 1vh) * 100);
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
-    height: -webkit-fill-available; /* Ajuste para iOS */
     font-family: 'Arial', sans-serif;
 }
 
 #game-container {
-    width: 100vw;
-    height: 100vh;
-    height: -webkit-fill-available;
+    width: 100%;
+    height: 100%;
     display: flex;
     justify-content: center;
     align-items: center;
     position: relative;
+    background: #000;
 }
 
 canvas {
     display: block;
     max-width: 100%;
     max-height: 100%;
+    object-fit: contain;
     aspect-ratio: 2 / 1;
     background: #222;
-    border: 2px solid #333;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.7);
 }
 
-/* Botón flotante para pantalla completa */
-#fullscreen-btn {
+/* Pantalla de bienvenida / Activador de pantalla completa */
+#overlay-start {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
-    border: 1px solid #555;
-    border-radius: 4px;
-    padding: 6px 10px;
-    font-size: 14px;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    color: white;
     cursor: pointer;
-    z-index: 9999;
+    text-align: center;
+    padding: 20px;
+}
+
+#overlay-start h1 {
+    margin-bottom: 10px;
+    font-size: 24px;
+    color: #ff9900;
+}
+
+#overlay-start p {
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+#overlay-start .btn {
+    background: #ff9900;
+    color: black;
+    border: none;
+    padding: 12px 24px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
 }
 </style>
 </head>
@@ -66,7 +93,12 @@ canvas {
 <body>
 
 <div id="game-container">
-    <button id="fullscreen-btn">Fullscreen ⛶</button>
+    <!-- Este panel fuerza al móvil a registrar el toque para ocultar el navegador -->
+    <div id="overlay-start">
+        <h1>Gato Aventurero</h1>
+        <p>Gira el móvil en horizontal y pulsa el botón para jugar a pantalla completa.</p>
+        <button class="btn">JUGAR AHORA ⛶</button>
+    </div>
     <canvas id="game" width="1000" height="500"></canvas>
 </div>
 
@@ -74,27 +106,40 @@ canvas {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const container = document.getElementById("game-container");
-const fsBtn = document.getElementById("fullscreen-btn");
+const overlay = document.getElementById("overlay-start");
 
-// Lógica de Pantalla Completa
-fsBtn.addEventListener("click", () => {
-    if (!document.fullscreenElement) {
-        container.requestFullscreen?.().catch(err => {
-            console.log(`Error al activar pantalla completa: ${err.message}`);
-        });
-        container.webkitRequestFullscreen?.(); // Soporte para Safari/iOS
-    } else {
-        document.exitFullscreen?.();
-        document.webkitExitFullscreen?.();
+// 1. CÁLCULO DINÁMICO DEL ALTO REAL (Ignora las barras del navegador)
+function resetHeight() {
+    let vh = window.innerHeight * 0.01;
+    document.documentElement.style.setProperty('--vh', `${vh}px`);
+    updateButtonPositions();
+}
+window.addEventListener('resize', resetHeight);
+window.addEventListener('orientationchange', () => {
+    setTimeout(resetHeight, 200);
+});
+resetHeight();
+
+// 2. FORZAR PANTALLA COMPLETA MEDIANTE ACCIÓN DEL USUARIO
+overlay.addEventListener("click", () => {
+    // Activa fullscreen nativo si está disponible
+    if (container.requestFullscreen) {
+        container.requestFullscreen().catch(err => console.log(err));
+    } else if (container.webkitRequestFullscreen) { /* iOS Safari */
+        container.webkitRequestFullscreen();
     }
+    
+    // Oculta el panel e inicia el entorno
+    overlay.style.display = "none";
+    setTimeout(resetHeight, 300);
 });
 
-// Ocultar botón si ya se está en pantalla completa
+// Si el usuario sale manualmente del modo fullscreen, volvemos a mostrar el botón de ajuste
 document.addEventListener("fullscreenchange", () => {
-    fsBtn.style.display = document.fullscreenElement ? "none" : "block";
+    if (!document.fullscreenElement) overlay.style.display = "flex";
 });
 document.addEventListener("webkitfullscreenchange", () => {
-    fsBtn.style.display = document.webkitFullscreenElement ? "none" : "block";
+    if (!document.webkitFullscreenElement) overlay.style.display = "flex";
 });
 
 const GRAVITY = 0.6;
@@ -128,7 +173,7 @@ const camera = {
 
 const keys = {};
 
-// BOTONES TÁCTILES ABAJO (44px)
+// BOTONES TÁCTILES
 const touchButtons = {
     left:   { radius: 44, active: false, label: "◀", action: "ArrowLeft" },
     jump:   { radius: 44, active: false, label: "▲", action: "ArrowUp" }, 
@@ -153,14 +198,11 @@ function updateButtonPositions() {
     touchButtons.shoot.y = centerY;
 }
 
-window.addEventListener("resize", updateButtonPositions);
-updateButtonPositions();
-
 // CONTROLES PC
 document.addEventListener("keydown", (e) => { if (e.key) keys[e.key] = true; });
 document.addEventListener("keyup", (e) => { if (e.key) keys[e.key] = false; });
 
-// CONTROLES TÁCTILES
+// CONTROLES TÁCTILES CON COORDENADAS ADAPTATIVAS
 function getCanvasTouchCoords(touch) {
     const rect = canvas.getBoundingClientRect();
     return {
