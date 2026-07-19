@@ -6,20 +6,18 @@
 <title>Gato Aventurero: La fiebre del Gatifuli</title>
 
 <style>
-*{
+* {
     box-sizing: border-box;
     user-select: none;
     -webkit-user-select: none;
-    touch-action: none; 
+    margin: 0;
+    padding: 0;
 }
 
 html, body {
-    margin: 0;
-    padding: 0;
     overflow: hidden;
     background: #1a1a1a;
     width: 100%;
-    /* Solución definitiva para el alto real en móviles */
     height: 100vh;
     height: calc(var(--vh, 1vh) * 100);
     display: flex;
@@ -45,47 +43,7 @@ canvas {
     object-fit: contain;
     aspect-ratio: 2 / 1;
     background: #222;
-}
-
-/* Pantalla de bienvenida / Activador de pantalla completa */
-#overlay-start {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.85);
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 99999;
-    color: white;
-    cursor: pointer;
-    text-align: center;
-    padding: 20px;
-}
-
-#overlay-start h1 {
-    margin-bottom: 10px;
-    font-size: 24px;
-    color: #ff9900;
-}
-
-#overlay-start p {
-    font-size: 16px;
-    margin-bottom: 20px;
-}
-
-#overlay-start .btn {
-    background: #ff9900;
-    color: black;
-    border: none;
-    padding: 12px 24px;
-    font-size: 18px;
-    font-weight: bold;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    touch-action: none;
 }
 </style>
 </head>
@@ -93,12 +51,6 @@ canvas {
 <body>
 
 <div id="game-container">
-    <!-- Este panel fuerza al móvil a registrar el toque para ocultar el navegador -->
-    <div id="overlay-start">
-        <h1>Gato Aventurero</h1>
-        <p>Gira el móvil en horizontal y pulsa el botón para jugar a pantalla completa.</p>
-        <button class="btn">JUGAR AHORA ⛶</button>
-    </div>
     <canvas id="game" width="1000" height="500"></canvas>
 </div>
 
@@ -106,41 +58,15 @@ canvas {
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const container = document.getElementById("game-container");
-const overlay = document.getElementById("overlay-start");
 
-// 1. CÁLCULO DINÁMICO DEL ALTO REAL (Ignora las barras del navegador)
+// CÁLCULO DINÁMICO DEL ESPACIO
 function resetHeight() {
     let vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
     updateButtonPositions();
 }
 window.addEventListener('resize', resetHeight);
-window.addEventListener('orientationchange', () => {
-    setTimeout(resetHeight, 200);
-});
-resetHeight();
-
-// 2. FORZAR PANTALLA COMPLETA MEDIANTE ACCIÓN DEL USUARIO
-overlay.addEventListener("click", () => {
-    // Activa fullscreen nativo si está disponible
-    if (container.requestFullscreen) {
-        container.requestFullscreen().catch(err => console.log(err));
-    } else if (container.webkitRequestFullscreen) { /* iOS Safari */
-        container.webkitRequestFullscreen();
-    }
-    
-    // Oculta el panel e inicia el entorno
-    overlay.style.display = "none";
-    setTimeout(resetHeight, 300);
-});
-
-// Si el usuario sale manualmente del modo fullscreen, volvemos a mostrar el botón de ajuste
-document.addEventListener("fullscreenchange", () => {
-    if (!document.fullscreenElement) overlay.style.display = "flex";
-});
-document.addEventListener("webkitfullscreenchange", () => {
-    if (!document.webkitFullscreenElement) overlay.style.display = "flex";
-});
+window.addEventListener('orientationchange', () => setTimeout(resetHeight, 200));
 
 const GRAVITY = 0.6;
 const GAME_HEIGHT = 400; 
@@ -166,14 +92,10 @@ const player = {
 };
 
 // CÁMARA
-const camera = {
-    x: 0,
-    width: canvas.width
-};
-
+const camera = { x: 0, width: canvas.width };
 const keys = {};
 
-// BOTONES TÁCTILES
+// BOTONES TÁCTILES Y DE INTERFAZ
 const touchButtons = {
     left:   { radius: 44, active: false, label: "◀", action: "ArrowLeft" },
     jump:   { radius: 44, active: false, label: "▲", action: "ArrowUp" }, 
@@ -181,28 +103,32 @@ const touchButtons = {
     shoot:  { radius: 44, active: false, label: "D", action: "2" }       
 };
 
+// Botón de pantalla completa integrado en el Canvas superior derecha
+const fsButton = { x: 930, y: 25, width: 50, height: 30 };
+
 function updateButtonPositions() {
     const w = canvas.width;
     const centerY = GAME_HEIGHT + 50; 
     
     touchButtons.left.x = 75;
     touchButtons.left.y = centerY;
-    
     touchButtons.jump.x = 175;
     touchButtons.jump.y = centerY;
-    
     touchButtons.right.x = 275;
     touchButtons.right.y = centerY;
-    
     touchButtons.shoot.x = w - 90;
     touchButtons.shoot.y = centerY;
 }
+
+// Inicializar posiciones básicas antes del bucle
+updateButtonPositions();
+resetHeight();
 
 // CONTROLES PC
 document.addEventListener("keydown", (e) => { if (e.key) keys[e.key] = true; });
 document.addEventListener("keyup", (e) => { if (e.key) keys[e.key] = false; });
 
-// CONTROLES TÁCTILES CON COORDENADAS ADAPTATIVAS
+// COORDENADAS ADAPTADAS AL LIENZO
 function getCanvasTouchCoords(touch) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -211,19 +137,42 @@ function getCanvasTouchCoords(touch) {
     };
 }
 
+// GESTIÓN TÁCTIL BLINDADA
 function handleTouches(e) {
     e.preventDefault();
+    
+    // Resetear estados activos
     for (const key in touchButtons) {
         touchButtons[key].active = false;
         keys[touchButtons[key].action] = false;
     }
+    
+    // Analizar toques activos
     for (let i = 0; i < e.touches.length; i++) {
         const coords = getCanvasTouchCoords(e.touches[i]);
+        
+        // Verificar si pulsa botones de movimiento
         for (const key in touchButtons) {
             const btn = touchButtons[key];
             if (Math.hypot(coords.x - btn.x, coords.y - btn.y) < btn.radius) {
                 btn.active = true;
                 keys[btn.action] = true;
+            }
+        }
+        
+        // Verificar si pulsa el botón de pantalla completa superior en el primer toque
+        if (e.type === "touchstart") {
+            if (coords.x >= fsButton.x && coords.x <= fsButton.x + fsButton.width &&
+                coords.y >= fsButton.y - 15 && coords.y <= fsButton.y + fsButton.height) {
+                try {
+                    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                        if (container.requestFullscreen) container.requestFullscreen().catch(()=>{});
+                        else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+                    } else {
+                        if (document.exitFullscreen) document.exitFullscreen();
+                        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                    }
+                } catch(err) {}
             }
         }
     }
@@ -291,32 +240,25 @@ function createExplosion(x, y, colorType) {
 
 function handleDamage() {
     if (player.invulnerableFrames > 0 || gameOverTimer > 0) return;
-    
     player.lives--;
     
     if (player.lives <= 0) {
         gameOverTimer = 120; 
         player.lives = 5;
         player.gatifulis = 0;
-        player.x = 100; 
-        player.y = 100;
-        player.vx = 0;
-        player.vy = 0;
+        player.x = 100; player.y = 100;
+        player.vx = 0; player.vy = 0;
         camera.x = 0;   
         spawnObjects(); 
         return;
     }
-    
     player.invulnerableFrames = 60; 
     player.x = Math.max(0, player.x - 100);
-    player.y = 50;
-    player.vx = 0;
-    player.vy = 0;
+    player.y = 50; player.vx = 0; player.vy = 0;
 }
 
 function updatePlayer() {
     if (gameOverTimer > 0) return; 
-    
     if (player.invulnerableFrames > 0) player.invulnerableFrames--;
 
     if (keys["ArrowLeft"]) { player.vx -= player.acceleration; player.facing = "left"; }
@@ -386,12 +328,9 @@ function updateObjects() {
     for (let i = enemies.length - 1; i >= 0; i--) {
         const z = enemies[i]; z.x += z.vx;
         if (z.x < z.minX || z.x > z.maxX) z.vx = -z.vx;
-
         if (player.x < z.x + z.width && player.x + player.width > z.x && player.y < z.y + z.height && player.y + player.height > z.y) {
-            handleDamage();
-            return; 
+            handleDamage(); return; 
         }
-
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (b.x < z.x + z.width && b.x + b.width > z.x && b.y < z.y + z.height && b.y + b.height > z.y) {
@@ -405,8 +344,7 @@ function updateObjects() {
         const c = gatifulis[i];
         if (player.x < c.x + c.width && player.x + player.width > c.x && player.y < c.y + c.height && player.y + player.height > c.y) {
             createExplosion(c.x + c.width/2, c.y + c.height/2, "coin");
-            player.gatifulis++;
-            gatifulis.splice(i, 1);
+            player.gatifulis++; gatifulis.splice(i, 1);
         }
     }
 
@@ -417,85 +355,61 @@ function updateObjects() {
 }
 
 function drawInterface() {
+    // Vidas del gato
     for (let i = 0; i < 5; i++) {
-        const hX = 30 + i * 35;
-        const hY = 25;
+        const hX = 30 + i * 35; const hY = 25;
         ctx.fillStyle = i < player.lives ? "#ff9900" : "#555"; 
-        
         ctx.beginPath();
         ctx.moveTo(hX - 10, hY - 4); ctx.lineTo(hX - 12, hY - 14); ctx.lineTo(hX - 4, hY - 6);
         ctx.moveTo(hX + 10, hY - 4); ctx.lineTo(hX + 12, hY - 14); ctx.lineTo(hX + 4, hY - 6);
         ctx.fill();
-        
-        ctx.beginPath();
-        ctx.arc(hX, hY, 10, 0, Math.PI * 2);
-        ctx.fill();
-        
+        ctx.beginPath(); ctx.arc(hX, hY, 10, 0, Math.PI * 2); ctx.fill();
         if (i < player.lives) {
-            ctx.fillStyle = "black";
-            ctx.fillRect(hX - 4, hY - 3, 2, 3);
-            ctx.fillRect(hX + 2, hY - 3, 2, 3);
-            ctx.fillStyle = "pink";
-            ctx.fillRect(hX - 1, hY + 2, 2, 2);
+            ctx.fillStyle = "black"; ctx.fillRect(hX - 4, hY - 3, 2, 3); ctx.fillRect(hX + 2, hY - 3, 2, 3);
+            ctx.fillStyle = "pink"; ctx.fillRect(hX - 1, hY + 2, 2, 2);
         }
     }
 
-    const mX = canvas.width - 150;
-    const mY = 25;
-    ctx.fillStyle = "#FFD700";
-    ctx.strokeStyle = "#DAA520";
+    // Contador Monedas
+    const mX = canvas.width - 240; const mY = 25;
+    ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "#DAA520"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(mX, mY, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#FFF"; ctx.font = "bold 12px Arial"; ctx.textAlign = "center"; ctx.fillText("G", mX, mY + 4);
+    ctx.fillStyle = "white"; ctx.font = "bold 20px Courier New"; ctx.textAlign = "left";
+    ctx.fillText(`x ${String(player.gatifulis).padStart(3, '0')}`, mX + 20, mY + 7);
+
+    // BOTÓN PANTALLA COMPLETA INTEGRADO
+    ctx.fillStyle = "#333";
+    ctx.strokeStyle = "#ff9900";
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(mX, mY, 11, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = "#FFF";
+    ctx.fillRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
+    ctx.strokeRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
+    ctx.fillStyle = "#fff";
     ctx.font = "bold 12px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("G", mX, mY + 4);
-
-    ctx.fillStyle = "white";
-    ctx.font = "bold 20px Courier New";
-    ctx.textAlign = "left";
-    ctx.fillText(`x ${String(player.gatifulis).padStart(3, '0')}`, mX + 20, mY + 7);
+    ctx.fillText("⛶ FULL", fsButton.x + 25, fsButton.y + 9);
 
     if (gameOverTimer > 0) {
         gameOverTimer--;
-        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-        ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
-        ctx.fillStyle = "#ff3333";
-        ctx.font = "bold 44px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.75)"; ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
+        ctx.fillStyle = "#ff3333"; ctx.font = "bold 44px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText("¡GAME OVER!", canvas.width / 2, GAME_HEIGHT / 2);
     }
 }
 
 function drawBackground() {
-    ctx.fillStyle = "#87CEEB";
-    ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
-    ctx.fillStyle = "#FFD700";
-    ctx.beginPath(); ctx.arc(800 - camera.x * 0.1, 60, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
+    ctx.fillStyle = "#FFD700"; ctx.beginPath(); ctx.arc(800 - camera.x * 0.1, 60, 30, 0, Math.PI * 2); ctx.fill();
 }
 
 function drawGatifulis() {
     ctx.save();
     for (const c of gatifulis) {
         const bobbing = Math.sin((gameFrame + c.baseIndex) * 0.08) * 5;
-        const rX = c.x - camera.x + c.width / 2;
-        const rY = c.y + bobbing + c.height / 2;
+        const rX = c.x - camera.x + c.width / 2; const rY = c.y + bobbing + c.height / 2;
         const pulseWidth = 10 + Math.abs(Math.sin(gameFrame * 0.1)) * 3;
-
-        ctx.fillStyle = "#FFD700";
-        ctx.strokeStyle = "#B8860B";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.ellipse(rX, rY, pulseWidth, 12, 0, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
-        
-        ctx.fillStyle = "rgba(255,255,255,0.4)";
-        ctx.beginPath();
-        ctx.ellipse(rX, rY, pulseWidth * 0.5, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "#B8860B"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(rX, rY, pulseWidth, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
     ctx.restore();
 }
@@ -522,8 +436,6 @@ function drawPlayer() {
     ctx.beginPath(); ctx.moveTo(x + 24, y + 4); ctx.lineTo(x + 29, y - 8); ctx.lineTo(x + 34, y + 4); ctx.fill();
     ctx.fillStyle = "black"; ctx.beginPath(); ctx.arc(x + 27, y + 10, 2, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "pink"; ctx.beginPath(); ctx.arc(x + 31, y + 14, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "black"; ctx.lineWidth = 1; ctx.beginPath();
-    ctx.moveTo(x + 32, y + 14); ctx.lineTo(x + 40, y + 11); ctx.moveTo(x + 32, y + 14); ctx.lineTo(x + 40, y + 14); ctx.moveTo(x + 32, y + 14); ctx.lineTo(x + 40, y + 17); ctx.stroke();
     ctx.fillStyle = "#5A381E"; ctx.fillRect(x + 10, y + 40, 8, 10); ctx.fillRect(x + 25, y + 40, 8, 10);
     ctx.fillStyle = "#555"; ctx.fillRect(x + 28, y + 18, 15, 6);
     ctx.fillStyle = "#333"; ctx.fillRect(x + 26, y + 20, 5, 8);
@@ -549,10 +461,8 @@ function drawEnemies() {
 
 function drawTouchPanel() {
     ctx.save();
-    ctx.fillStyle = "#151515";
-    ctx.fillRect(0, GAME_HEIGHT, canvas.width, 100);
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 4;
+    ctx.fillStyle = "#151515"; ctx.fillRect(0, GAME_HEIGHT, canvas.width, 100);
+    ctx.strokeStyle = "#333"; ctx.lineWidth = 4;
     ctx.beginPath(); ctx.moveTo(0, GAME_HEIGHT); ctx.lineTo(canvas.width, GAME_HEIGHT); ctx.stroke();
 
     for (const key in touchButtons) {
@@ -560,12 +470,9 @@ function drawTouchPanel() {
         ctx.fillStyle = btn.active ? "#444" : "#252525";
         ctx.strokeStyle = btn.active ? "#ff9900" : "#555";
         ctx.lineWidth = 4;
-        
         ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        
         ctx.fillStyle = btn.active ? "#ff9900" : "#bbb";
-        ctx.font = "bold 32px Arial";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = "bold 32px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(btn.label, btn.x, btn.y + 2);
     }
     ctx.restore();
@@ -575,27 +482,20 @@ function gameLoop() {
     gameFrame++;
     updatePlayer();
     updateObjects();
-
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
     drawBackground();
     drawPlatforms();
     drawGatifulis();
-    
     ctx.fillStyle = "#ff3333";
     for (const b of bullets) ctx.fillRect(b.x - camera.x, b.y, b.width, b.height);
-    
     drawEnemies();
-    
     for (const p of particles) {
         ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
         ctx.fillRect(p.x - camera.x - p.size/2, p.y - p.size/2, p.size, p.size); ctx.restore();
     }
-    
     drawPlayer();
     drawInterface(); 
     drawTouchPanel();
-
     requestAnimationFrame(gameLoop);
 }
 
