@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Gato Aventurero: La fiebre del Gatifuli</title>
+<title>Gato Aventurero: Fila Centrada</title>
 
 <style>
 * {
@@ -70,7 +70,7 @@ window.addEventListener('orientationchange', () => setTimeout(resetHeight, 200))
 const GRAVITY = 0.6;
 const GAME_HEIGHT = 400; 
 
-// ESCENARIO (Definido arriba para usarlo en el respawn seguro)
+// ESCENARIO
 const platforms = [
     {x: 0, y: 350, width: 3000, height: 50}, 
     {x: 300, y: 250, width: 250, height: 20},
@@ -98,14 +98,25 @@ const player = {
     shootCooldown: 0,
     lives: 5,
     gatifulis: 0,
-    invulnerableFrames: 0
+    invulnerableFrames: 0,
+    hasJetpack: false
+};
+
+// COFRE
+const chest = {
+    x: 500,
+    y: 310, 
+    width: 40,
+    height: 40,
+    opened: false,
+    nearPlayer: false
 };
 
 // CÁMARA
 const camera = { x: 0, width: canvas.width };
 const keys = {};
 
-// JOYSTICK ANALÓGICO
+// JOYSTICK
 const joystick = {
     startX: 0,      
     startY: 0,
@@ -118,25 +129,40 @@ const joystick = {
     deadzone: 8     
 };
 
-// BOTONES DERECHOS
+// BOTONES TÁCTILES
 const actionButtons = {
-    jump:   { radius: 36, active: false, label: "▲", action: "ArrowUp", x: 0, y: 0 }, 
-    shoot:  { radius: 36, active: false, label: "D", action: "2", x: 0, y: 0 }       
+    action: { radius: 32, active: false, label: "A", action: "e", x: 0, y: 0, visible: false }, 
+    jetpack:{ radius: 32, active: false, label: "P", action: "Shift", x: 0, y: 0, visible: false },
+    shoot:  { radius: 32, active: false, label: "D", action: "2", x: 0, y: 0, visible: true },
+    jump:   { radius: 32, active: false, label: "▲", action: "ArrowUp", x: 0, y: 0, visible: true } 
 };
 
 const fsButton = { x: 930, y: 25, width: 50, height: 30 };
 
 function updateControlPositions() {
     const w = canvas.width;
-    const centerY = GAME_HEIGHT + 50; 
+    const centerY = GAME_HEIGHT + 50; // Altura de la fila fija
     
+    // Joystick izquierdo
     joystick.defaultX = 130; 
     joystick.defaultY = centerY;
     
-    actionButtons.jump.x = w - 150;
+    // --- FILA MOVIDA MÁS AL MEDIO ---
+    const spacing = 75; 
+    // Cambiamos startX de (w - 70) a (w - 180) para empujar todo el bloque hacia el centro del lienzo
+    const startX = w - 180; 
+
+    actionButtons.jump.x = startX;
     actionButtons.jump.y = centerY;
-    actionButtons.shoot.x = w - 65;
+
+    actionButtons.shoot.x = startX - spacing;
     actionButtons.shoot.y = centerY;
+
+    actionButtons.jetpack.x = startX - (spacing * 2);
+    actionButtons.jetpack.y = centerY;
+
+    actionButtons.action.x = startX - (spacing * 3);
+    actionButtons.action.y = centerY;
 }
 
 updateControlPositions();
@@ -174,7 +200,7 @@ canvas.addEventListener("touchstart", (e) => {
         
         for (const key in actionButtons) {
             const btn = actionButtons[key];
-            if (Math.hypot(coords.x - btn.x, coords.y - btn.y) < btn.radius) {
+            if (btn.visible && Math.hypot(coords.x - btn.x, coords.y - btn.y) < btn.radius) {
                 btn.active = true;
                 keys[btn.action] = true;
             }
@@ -240,7 +266,6 @@ canvas.addEventListener("touchend", (e) => {
     }
 }, { passive: false });
 
-// INTERPRETACIÓN DEL JOYSTICK
 function processJoystick() {
     if (!joystick.active) return;
 
@@ -268,8 +293,6 @@ function processJoystick() {
         keys["ArrowLeft"] = false;
         keys["ArrowRight"] = false;
     }
-
-    // El joystick izquierdo solo mueve, el salto se deja al botón ▲ para evitar conflictos directos
 }
 
 const enemies = [];
@@ -281,6 +304,14 @@ let gameOverTimer = 0;
 
 function spawnObjects() {
     enemies.length = 0; gatifulis.length = 0; bullets.length = 0; particles.length = 0;
+    chest.opened = false;
+    player.hasJetpack = false;
+    actionButtons.action.visible = false;
+    actionButtons.jetpack.visible = false;
+    player.lives = 5; player.gatifulis = 0;
+    player.x = 100; player.y = 100; player.vx = 0; player.vy = 0;
+    camera.x = 0;
+    
     enemies.push(
         { x: 400, y: 200, width: 40, height: 50, vx: 1.5, minX: 300, maxX: 510 },
         { x: 1050, y: 80, width: 40, height: 50, vx: 1.2, minX: 950, maxX: 1210 },
@@ -299,15 +330,17 @@ function spawnObjects() {
 spawnObjects();
 
 function createExplosion(x, y, colorType) {
-    for (let i = 0; i < 12; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = 1 + Math.random() * 3;
+    let count = colorType === "jetpack" ? 4 : 12;
+    for (let i = 0; i < count; i++) {
+        const angle = colorType === "jetpack" ? (Math.PI/2 + (Math.random()*0.4 - 0.2)) : (Math.random() * Math.PI * 2);
+        const speed = colorType === "jetpack" ? (1 + Math.random() * 2) : (1 + Math.random() * 3);
         particles.push({
             x: x, y: y,
-            vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-            size: 3 + Math.random() * 2,
-            color: colorType === "coin" ? "#FFD700" : (Math.random() > 0.5 ? "#4a8a3b" : "#ff3333"),
-            alpha: 1, decay: 0.04
+            vx: Math.cos(angle) * speed + (colorType === "jetpack" ? player.vx * 0.4 : 0), 
+            vy: Math.sin(angle) * speed,
+            size: colorType === "jetpack" ? (2 + Math.random() * 2) : (3 + Math.random() * 2),
+            color: colorType === "coin" ? "#FFD700" : colorType === "jetpack" ? (Math.random() > 0.4 ? "#ff6600" : "#555555") : (Math.random() > 0.5 ? "#4a8a3b" : "#ff3333"),
+            alpha: 1, decay: colorType === "jetpack" ? 0.08 : 0.04
         });
     }
 }
@@ -318,19 +351,10 @@ function handleDamage() {
     
     if (player.lives <= 0) {
         gameOverTimer = 120; 
-        player.lives = 5; 
-        player.gatifulis = 0;
-        player.x = 100; 
-        player.y = 100; 
-        player.vx = 0; 
-        player.vy = 0;
-        camera.x = 0; 
-        spawnObjects(); 
         return;
     }
     
     player.invulnerableFrames = 60;
-    // Respawn seguro en el eje X estable
     player.x = Math.max(100, player.x - 150);
     player.y = 100;
     player.vx = 0; 
@@ -347,8 +371,8 @@ function checkCollision(rect1, rect2) {
 function updatePlayer() {
     if (gameOverTimer > 0) return; 
     if (player.invulnerableFrames > 0) player.invulnerableFrames--;
+    if (player.shootCooldown > 0) player.shootCooldown--;
 
-    // Movimiento
     if (keys["ArrowLeft"] || keys["a"] || keys["A"]) { 
         player.vx -= player.acceleration; 
         player.facing = "left"; 
@@ -365,17 +389,41 @@ function updatePlayer() {
     if (player.vx < -player.maxSpeed) player.vx = -player.maxSpeed;
     if (Math.abs(player.vx) < 0.1) player.vx = 0;
 
-    // Salto
-    if (keys["ArrowUp"] || keys["w"] || keys["W"]) {
-        if (player.onGround) {
-            player.vy = player.jumpPower;
-            player.onGround = false;
-        }
+    const isPropelling = player.hasJetpack && (keys["Shift"] || actionButtons.jetpack.active);
+    if ((keys["ArrowUp"] || keys["w"] || keys["W"]) && player.onGround && !isPropelling) {
+        player.vy = player.jumpPower;
+        player.onGround = false;
     }
 
-    player.vy += GRAVITY;
+    if (isPropelling) {
+        player.vy -= 0.95; 
+        if (player.vy < -4.5) player.vy = -4.5; 
+        let jetX = player.facing === "right" ? player.x + 5 : player.x + player.width - 5;
+        let jetY = player.y + 35;
+        createExplosion(jetX, jetY, "jetpack");
+    } else {
+        player.vy += GRAVITY;
+    }
 
-    // --- COLISIÓN EJE X ---
+    let distToChest = Math.hypot((player.x + player.width/2) - (chest.x + chest.width/2), (player.y + player.height/2) - (chest.y + chest.height/2));
+    if (distToChest < 70 && !chest.opened) {
+        chest.nearPlayer = true;
+        actionButtons.action.visible = true; 
+        
+        if (keys["e"] || keys["E"] || actionButtons.action.active) {
+            chest.opened = true;
+            player.hasJetpack = true;
+            actionButtons.action.visible = false;
+            actionButtons.jetpack.visible = true; 
+            createExplosion(chest.x + chest.width/2, chest.y, "coin");
+            actionButtons.action.active = false;
+            keys["e"] = false; keys["E"] = false;
+        }
+    } else {
+        chest.nearPlayer = false;
+        if (!chest.opened) actionButtons.action.visible = false;
+    }
+
     player.x += player.vx;
     for (const p of platforms) {
         if (checkCollision(player, p)) {
@@ -385,7 +433,6 @@ function updatePlayer() {
         }
     }
 
-    // --- COLISIÓN EJE Y ---
     player.y += player.vy;
     player.onGround = false;
     for (const p of platforms) {
@@ -401,16 +448,11 @@ function updatePlayer() {
         }
     }
 
-    // Límites de pantalla y abismo
     if (player.x < 0) { player.x = 0; player.vx = 0; }
-    
-    // Red de seguridad absoluta contra caídas infinitas
     if (player.y > GAME_HEIGHT + 60) {
         handleDamage();
     }
 
-    // Disparos
-    if (player.shootCooldown > 0) player.shootCooldown--;
     if ((keys["2"] || keys["f"] || keys["F"]) && player.shootCooldown === 0) {
         bullets.push({
             x: player.facing === "right" ? player.x + player.width : player.x - 10,
@@ -421,7 +463,6 @@ function updatePlayer() {
         player.shootCooldown = 18;
     }
 
-    // Suavizado de cámara
     camera.x += (player.x - canvas.width / 3 - camera.x) * 0.08;
     if (camera.x < 0) camera.x = 0;
 }
@@ -429,11 +470,9 @@ function updatePlayer() {
 function updateObjects() {
     if (gameOverTimer > 0) return; 
 
-    // Balas
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i]; 
         b.x += b.vx;
-        
         let hitWall = false;
         for (const p of platforms) {
             if (checkCollision(b, p)) hitWall = true;
@@ -443,19 +482,16 @@ function updateObjects() {
         }
     }
 
-    // Enemigos
     for (let i = enemies.length - 1; i >= 0; i--) {
         const z = enemies[i]; 
         z.x += z.vx;
         if (z.x < z.minX || z.x > z.maxX) z.vx = -z.vx;
 
-        // Daño al jugador
         if (checkCollision(player, z)) {
             handleDamage();
             return; 
         }
 
-        // Muerte del enemigo
         for (let j = bullets.length - 1; j >= 0; j--) {
             const b = bullets[j];
             if (checkCollision(b, z)) {
@@ -467,7 +503,6 @@ function updateObjects() {
         }
     }
 
-    // Monedas / Gatifulis
     for (let i = gatifulis.length - 1; i >= 0; i--) {
         const c = gatifulis[i];
         if (checkCollision(player, c)) {
@@ -477,7 +512,6 @@ function updateObjects() {
         }
     }
 
-    // Partículas
     for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]; 
         p.x += p.vx; 
@@ -488,7 +522,6 @@ function updateObjects() {
 }
 
 function drawInterface() {
-    // Vidas
     for (let i = 0; i < 5; i++) {
         const hX = 30 + i * 35; const hY = 25;
         ctx.fillStyle = i < player.lives ? "#ff9900" : "#555"; 
@@ -503,7 +536,6 @@ function drawInterface() {
         }
     }
 
-    // Contador Monedas
     const mX = canvas.width - 240; const mY = 25;
     ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "#DAA520"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(mX, mY, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -511,7 +543,6 @@ function drawInterface() {
     ctx.fillStyle = "white"; ctx.font = "bold 20px Courier New"; ctx.textAlign = "left";
     ctx.fillText(`x ${String(player.gatifulis).padStart(3, '0')}`, mX + 20, mY + 7);
 
-    // Botón Fullscreen
     ctx.fillStyle = "#333"; ctx.strokeStyle = "#ff9900"; ctx.lineWidth = 2;
     ctx.fillRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
     ctx.strokeRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
@@ -550,13 +581,42 @@ function drawPlatforms() {
     }
 }
 
+function drawChest() {
+    const cx = chest.x - camera.x;
+    const cy = chest.y;
+    
+    ctx.save();
+    if (!chest.opened) {
+        ctx.fillStyle = "#5c3a21";
+        ctx.fillRect(cx, cy, chest.width, chest.height);
+        ctx.fillStyle = "#DAA520";
+        ctx.fillRect(cx, cy, chest.width, 8); 
+        ctx.fillRect(cx + chest.width/2 - 4, cy + 12, 8, 10); 
+    } else {
+        ctx.fillStyle = "#3d2414";
+        ctx.fillRect(cx, cy + 10, chest.width, chest.height - 10);
+        ctx.fillStyle = "#DAA520";
+        ctx.fillRect(cx, cy - 2, chest.width, 8); 
+    }
+    ctx.restore();
+}
+
 function drawPlayer() {
     if (player.invulnerableFrames > 0 && Math.floor(gameFrame / 4) % 2 === 0) return; 
     const x = player.x - camera.x; const y = player.y;
     ctx.save();
+    
     if (player.facing === "left") {
         ctx.translate(x + player.width/2, y + player.height/2); ctx.scale(-1, 1); ctx.translate(-(x + player.width/2), -(y + player.height/2));
     }
+    
+    if (player.hasJetpack) {
+        ctx.fillStyle = "#7f8c8d";
+        ctx.fillRect(x + 2, y + 22, 10, 20); 
+        ctx.fillStyle = "#95a5a6";
+        ctx.fillRect(x + 4, y + 20, 6, 2);   
+    }
+
     ctx.strokeStyle = "#ff9900"; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x + 5, y + 25); ctx.lineTo(x - 10, y + 15); ctx.stroke();
     ctx.fillStyle = "#ff9900"; ctx.fillRect(x + 10, y + 18, 22, 22);
     ctx.fillStyle = "#ffb347"; ctx.beginPath(); ctx.arc(x + 22, y + 12, 12, 0, Math.PI * 2); ctx.fill();
@@ -615,14 +675,21 @@ function drawTouchPanel() {
     ctx.fillStyle = joystick.active ? "#ff9900" : "#888";
     ctx.beginPath(); ctx.arc(stickX, stickY, 20, 0, Math.PI * 2); ctx.fill();
 
+    // DIBUJAR BOTONES EN FILA CENTRALIZADA
     for (const key in actionButtons) {
         const btn = actionButtons[key];
+        if (!btn.visible) continue; 
+
         ctx.fillStyle = btn.active ? "#444" : "#252525";
-        ctx.strokeStyle = btn.active ? "#555" : "#333";
+        ctx.strokeStyle = btn.active ? "#ff9900" : "#333";
         ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = btn.active ? "#ff9900" : "#bbb";
-        ctx.font = "bold 24px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        
+        if (btn.label === "A") ctx.fillStyle = "#5dade2"; 
+        else if (btn.label === "P") ctx.fillStyle = "#e67e22"; 
+        else ctx.fillStyle = btn.active ? "#ff9900" : "#bbb";
+        
+        ctx.font = "bold 22px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(btn.label, btn.x, btn.y + 2);
     }
     ctx.restore();
@@ -633,6 +700,7 @@ function gameLoop() {
     
     if (gameOverTimer > 0) {
         gameOverTimer--;
+        if (gameOverTimer === 0) spawnObjects(); 
     } else {
         processJoystick(); 
         updatePlayer();
@@ -642,6 +710,7 @@ function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     drawBackground();
     drawPlatforms();
+    drawChest(); 
     drawGatifulis();
     
     ctx.fillStyle = "#ff3333";
