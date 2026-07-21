@@ -299,6 +299,20 @@ const enemies = [];
 const bullets = [];
 const particles = [];
 const gatifulis = [];
+let boss = {
+    x: 2140,
+    y: 80,
+    width: 90,
+    height: 110,
+    vx: 2,
+    minX: 2110,
+    maxX: 2190,
+    lives: 25,
+    active: true
+};
+
+const bossBullets = [];
+let victory = false;
 let gameFrame = 0;
 let gameOverTimer = 0; 
 
@@ -520,6 +534,131 @@ function updateObjects() {
         if (p.alpha <= 0) particles.splice(i, 1);
     }
 }
+function updateBoss() {
+
+    if (!boss.active || victory) return;
+
+    boss.x += boss.vx;
+
+    if (boss.x < boss.minX || boss.x > boss.maxX) {
+        boss.vx *= -1;
+    }
+
+    // Disparo del boss
+    if (gameFrame % 70 === 0) {
+
+        let dx =
+            (player.x + player.width / 2) -
+            (boss.x + boss.width / 2);
+
+        let dy =
+            (player.y + player.height / 2) -
+            (boss.y + boss.height / 2);
+
+        const len = Math.hypot(dx, dy);
+
+        bossBullets.push({
+            x: boss.x + boss.width / 2,
+            y: boss.y + 40,
+            vx: dx / len * 5,
+            vy: dy / len * 5,
+            width: 12,
+            height: 12
+        });
+    }
+
+    // Balas del boss
+    for (let i = bossBullets.length - 1; i >= 0; i--) {
+
+        const b = bossBullets[i];
+
+        b.x += b.vx;
+        b.y += b.vy;
+
+        if (checkCollision(player, b)) {
+            handleDamage();
+            bossBullets.splice(i, 1);
+            continue;
+        }
+
+        if (
+            b.x < 0 ||
+            b.x > 3000 ||
+            b.y < 0 ||
+            b.y > GAME_HEIGHT
+        ) {
+            bossBullets.splice(i, 1);
+        }
+    }
+
+    // Daño al boss
+    for (let i = bullets.length - 1; i >= 0; i--) {
+
+        if (checkCollision(bullets[i], boss)) {
+
+            boss.lives--;
+            bullets.splice(i, 1);
+
+            createExplosion(
+                boss.x + boss.width / 2,
+                boss.y + boss.height / 2,
+                "zombie"
+            );
+
+            if (boss.lives <= 0) {
+
+                boss.active = false;
+                victory = true;
+
+                createExplosion(
+                    boss.x + boss.width / 2,
+                    boss.y + boss.height / 2,
+                    "coin"
+                );
+            }
+        }
+    }
+
+    if (checkCollision(player, boss)) {
+        handleDamage();
+    }
+}
+function drawBoss() {
+
+    if (!boss.active) return;
+
+    const x = boss.x - camera.x;
+    const y = boss.y;
+
+    // cuerpo
+    ctx.fillStyle = "#7b1fa2";
+    ctx.fillRect(x, y + 20, boss.width, boss.height - 20);
+
+    // cabeza
+    ctx.fillStyle = "#9c27b0";
+    ctx.beginPath();
+    ctx.arc(x + boss.width/2, y + 15, 25, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ojos
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.arc(x + 35, y + 10, 4, 0, Math.PI*2);
+    ctx.arc(x + 55, y + 10, 4, 0, Math.PI*2);
+    ctx.fill();
+
+    // barra de vida
+    ctx.fillStyle = "black";
+    ctx.fillRect(x, y - 20, boss.width, 10);
+
+    ctx.fillStyle = "red";
+    ctx.fillRect(
+        x,
+        y - 20,
+        boss.width * (boss.lives / 25),
+        10
+    );
+}
 
 function drawInterface() {
     for (let i = 0; i < 5; i++) {
@@ -554,6 +693,17 @@ function drawInterface() {
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 44px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText("¡GAME OVER!", canvas.width / 2, GAME_HEIGHT / 2);
     }
+    if (victory) {
+
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(0,0,canvas.width,GAME_HEIGHT);
+
+    ctx.fillStyle = "#00ff66";
+    ctx.font = "bold 44px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("¡HAS GANADO!",canvas.width/2,GAME_HEIGHT/2);
+    }
+
 }
 
 function drawBackground() {
@@ -705,6 +855,7 @@ function gameLoop() {
         processJoystick(); 
         updatePlayer();
         updateObjects();
+        updateBoss();
     }
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -717,12 +868,27 @@ function gameLoop() {
     for (const b of bullets) ctx.fillRect(b.x - camera.x, b.y, b.width, b.height);
     
     drawEnemies();
+    drawBoss();
     
     for (const p of particles) {
         ctx.save(); ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
         ctx.fillRect(p.x - camera.x - p.size/2, p.y - p.size/2, p.size, p.size); ctx.restore();
     }
     
+  ctx.fillStyle = "#bb00ff";
+  
+  for (const b of bossBullets) {
+    ctx.beginPath();
+    ctx.arc(
+        b.x - camera.x,
+        b.y,
+        6,
+        0,
+        Math.PI * 2
+    );
+    ctx.fill();
+  }
+  
     drawPlayer();
     drawInterface(); 
     drawTouchPanel();
