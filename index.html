@@ -78,7 +78,9 @@ const platforms = [
     {x: 950, y: 130, width: 300, height: 20},
     {x: 1350, y: 200, width: 250, height: 20},
     {x: 1700, y: 270, width: 300, height: 20},
-    {x: 2100, y: 180, width: 150, height: 220}
+    {x: 2100, y: 180, width: 150, height: 220},
+	// --- NUEVA COLUMNA AL FINAL DEL MAPA ---
+    {x: 2970, y: 200, width: 30, height: 150}
 ];
 
 // JUGADOR
@@ -300,13 +302,13 @@ const bullets = [];
 const particles = [];
 const gatifulis = [];
 let boss = {
-    x: 2140,
-    y: 80,
+    x: 2700,
+    y: 240,           // Apoyado en el suelo principal (350 - 110 de altura)
     width: 90,
     height: 110,
     vx: 2,
-    minX: 2110,
-    maxX: 2190,
+    minX: 2500,
+    maxX: 2850,
     lives: 25,
     active: true
 };
@@ -567,6 +569,7 @@ function updateBoss() {
         });
     }
 
+    
     // Balas del boss
     for (let i = bossBullets.length - 1; i >= 0; i--) {
 
@@ -581,7 +584,17 @@ function updateBoss() {
             continue;
         }
 
+        // Comprobar si choca contra alguna plataforma
+        let hitWall = false;
+        for (const p of platforms) {
+            if (checkCollision(b, p)) {
+                hitWall = true;
+                break;
+            }
+        }
+
         if (
+            hitWall ||
             b.x < 0 ||
             b.x > 3000 ||
             b.y < 0 ||
