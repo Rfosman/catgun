@@ -149,20 +149,23 @@ function updateControlPositions() {
     joystick.defaultX = 130; 
     joystick.defaultY = centerY;
     
-    // --- FILA MOVIDA MÁS AL MEDIO ---
-    const spacing = 95; 
-    // Cambiamos startX de (w - 70) a (w - 180) para empujar todo el bloque hacia el centro del lienzo
-    const startX = w - 120; 
+    // --- SEPARACIÓN Y ORDEN AJUSTADO ---
+    const spacing = 110; // Espacio extra entre botones (aprox. medio dedo)
+    const startX = w - 110; // Margen derecho inicial
 
-    actionButtons.jump.x = startX;
-    actionButtons.jump.y = centerY;
-
-    actionButtons.shoot.x = startX - spacing;
+    // 1. PRIMERO A LA DERECHA: Botón D (Disparo)
+    actionButtons.shoot.x = startX;
     actionButtons.shoot.y = centerY;
 
+    // 2. EN MEDIO: Botón ▲ (Salto)
+    actionButtons.jump.x = startX - spacing;
+    actionButtons.jump.y = centerY;
+
+    // 3. POR ÚLTIMO (más a la izquierda): Botón P (Jetpack) que se queda quieto como pedías
     actionButtons.jetpack.x = startX - (spacing * 2);
     actionButtons.jetpack.y = centerY;
 
+    // Botón A (Acción con el cofre), se desplaza al extremo izquierdo cuando aparece
     actionButtons.action.x = startX - (spacing * 3);
     actionButtons.action.y = centerY;
 }
