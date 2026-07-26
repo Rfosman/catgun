@@ -139,7 +139,7 @@ const actionButtons = {
     jump:   { radius: 42, active: false, label: "▲", action: "ArrowUp", x: 0, y: 0, visible: true } 
 };
 
-const fsButton = { x: 930, y: 25, width: 50, height: 30 };
+//const fsButton = { x: 930, y: 25, width: 50, height: 30 };// <--- Bórrala para el boton FULL SCREEN
 
 function updateControlPositions() {
     const w = canvas.width;
@@ -210,7 +210,7 @@ canvas.addEventListener("touchstart", (e) => {
                 keys[btn.action] = true;
             }
         }
-        
+        /*   //BORRAMOS  EL FULL SCREEN FUNCTION
         if (coords.x >= fsButton.x && coords.x <= fsButton.x + fsButton.width &&
             coords.y >= fsButton.y - 10 && coords.y <= fsButton.y + fsButton.height) {
             try {
@@ -223,6 +223,7 @@ canvas.addEventListener("touchstart", (e) => {
                 }
             } catch(err) {}
         }
+		*/
     }
 }, { passive: false });
 
@@ -697,13 +698,13 @@ function drawInterface() {
     ctx.fillStyle = "#FFF"; ctx.font = "bold 12px Arial"; ctx.textAlign = "center"; ctx.fillText("G", mX, mY + 4);
     ctx.fillStyle = "white"; ctx.font = "bold 20px Courier New"; ctx.textAlign = "left";
     ctx.fillText(`x ${String(player.gatifulis).padStart(3, '0')}`, mX + 20, mY + 7);
-
+/*
     ctx.fillStyle = "#333"; ctx.strokeStyle = "#ff9900"; ctx.lineWidth = 2;
     ctx.fillRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
     ctx.strokeRect(fsButton.x, fsButton.y - 10, fsButton.width, fsButton.height);
     ctx.fillStyle = "#fff"; ctx.font = "bold 12px Arial"; ctx.textAlign = "center";
     ctx.fillText("⛶ FULL", fsButton.x + 25, fsButton.y + 9);
-
+*/
     if (gameOverTimer > 0) {
         ctx.fillStyle = "rgba(0, 0, 0, 0.75)"; ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
         ctx.fillStyle = "#ff3333"; ctx.font = "bold 44px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
