@@ -131,12 +131,12 @@ const joystick = {
     deadzone: 8     
 };
 
-// BOTONES TÁCTILES
+// BOTONES TÁCTILES (Radio ampliado a 42 para coincidir con el joystick)
 const actionButtons = {
-    action: { radius: 32, active: false, label: "A", action: "e", x: 0, y: 0, visible: false }, 
-    jetpack:{ radius: 32, active: false, label: "P", action: "Shift", x: 0, y: 0, visible: false },
-    shoot:  { radius: 32, active: false, label: "D", action: "2", x: 0, y: 0, visible: true },
-    jump:   { radius: 32, active: false, label: "▲", action: "ArrowUp", x: 0, y: 0, visible: true } 
+    action: { radius: 42, active: false, label: "A", action: "e", x: 0, y: 0, visible: false }, 
+    jetpack:{ radius: 42, active: false, label: "P", action: "Shift", x: 0, y: 0, visible: false },
+    shoot:  { radius: 42, active: false, label: "D", action: "2", x: 0, y: 0, visible: true },
+    jump:   { radius: 42, active: false, label: "▲", action: "ArrowUp", x: 0, y: 0, visible: true } 
 };
 
 const fsButton = { x: 930, y: 25, width: 50, height: 30 };
@@ -150,9 +150,9 @@ function updateControlPositions() {
     joystick.defaultY = centerY;
     
     // --- FILA MOVIDA MÁS AL MEDIO ---
-    const spacing = 75; 
+    const spacing = 95; 
     // Cambiamos startX de (w - 70) a (w - 180) para empujar todo el bloque hacia el centro del lienzo
-    const startX = w - 180; 
+    const startX = w - 120; 
 
     actionButtons.jump.x = startX;
     actionButtons.jump.y = centerY;
@@ -851,8 +851,9 @@ function drawTouchPanel() {
         if (btn.label === "A") ctx.fillStyle = "#5dade2"; 
         else if (btn.label === "P") ctx.fillStyle = "#e67e22"; 
         else ctx.fillStyle = btn.active ? "#ff9900" : "#bbb";
-        
-        ctx.font = "bold 22px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.font = "bold 26px Arial"; 
+        ctx.textAlign = "center"; 
+        ctx.textBaseline = "middle";
         ctx.fillText(btn.label, btn.x, btn.y + 2);
     }
     ctx.restore();
