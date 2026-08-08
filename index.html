@@ -131,7 +131,7 @@ const joystick = {
     deadzone: 8     
 };
 
-// BOTONES TÁCTILES (Radio ampliado a 42 para coincidir con el joystick)
+// BOTONES TÁCTILES (Con el radio ampliado para que sean tan grandes como el joystick)
 const actionButtons = {
     action: { radius: 42, active: false, label: "A", action: "e", x: 0, y: 0, visible: false }, 
     jetpack:{ radius: 42, active: false, label: "P", action: "Shift", x: 0, y: 0, visible: false },
@@ -139,7 +139,7 @@ const actionButtons = {
     jump:   { radius: 42, active: false, label: "▲", action: "ArrowUp", x: 0, y: 0, visible: true } 
 };
 
-const fsButton = { x: 930, y: 25, width: 50, height: 30 };// <--- Bórrala para el boton FULL SCREEN
+const fsButton = { x: 930, y: 25, width: 50, height: 30 };
 
 function updateControlPositions() {
     const w = canvas.width;
@@ -149,24 +149,21 @@ function updateControlPositions() {
     joystick.defaultX = 130; 
     joystick.defaultY = centerY;
     
-    // --- SEPARACIÓN Y ORDEN AJUSTADO ---
-    const spacing = 110; // Espacio extra entre botones (aprox. medio dedo)
-    const startX = w - 110; // Margen derecho inicial
+    const spacing = 100; 
+    const startX = w - 210; // Posición base de la extrema derecha
 
-    // 1. PRIMERO A LA DERECHA: Botón D (Disparo)
-    actionButtons.shoot.x = startX;
-    actionButtons.shoot.y = centerY;
-
-    // 2. EN MEDIO: Botón ▲ (Salto)
-    actionButtons.jump.x = startX - spacing;
+    // ORDEN DE IZQUIERDA A DERECHA: A -> P -> D -> ▲ (Salto)
+    // Colocamos el de más a la derecha (Salto) en startX, y los demás hacia la izquierda restando espacio.
+    actionButtons.jump.x = startX;                   // ▲ (Salto en el extremo derecho)
     actionButtons.jump.y = centerY;
 
-    // 3. POR ÚLTIMO (más a la izquierda): Botón P (Jetpack) que se queda quieto como pedías
-    actionButtons.jetpack.x = startX - (spacing * 2);
+    actionButtons.shoot.x = startX - spacing;          // D 
+    actionButtons.shoot.y = centerY;
+
+    actionButtons.jetpack.x = startX - (spacing * 2);  // P (Jetpack)
     actionButtons.jetpack.y = centerY;
 
-    // Botón A (Acción con el cofre), se desplaza al extremo izquierdo cuando aparece
-    actionButtons.action.x = startX - (spacing * 3);
+    actionButtons.action.x = startX - (spacing * 3);   // A (Acción en la parte más a la izquierda de la botonera)
     actionButtons.action.y = centerY;
 }
 
@@ -210,7 +207,7 @@ canvas.addEventListener("touchstart", (e) => {
                 keys[btn.action] = true;
             }
         }
-          //BORRAMOS  EL FULL SCREEN FUNCTION
+        
         if (coords.x >= fsButton.x && coords.x <= fsButton.x + fsButton.width &&
             coords.y >= fsButton.y - 10 && coords.y <= fsButton.y + fsButton.height) {
             try {
@@ -223,7 +220,6 @@ canvas.addEventListener("touchstart", (e) => {
                 }
             } catch(err) {}
         }
-		
     }
 }, { passive: false });
 
@@ -319,6 +315,7 @@ let boss = {
 
 const bossBullets = [];
 let victory = false;
+let victoryTimer = 0;
 let gameFrame = 0;
 let gameOverTimer = 0; 
 
@@ -626,7 +623,7 @@ function updateBoss() {
 
                 boss.active = false;
                 victory = true;
-
+				victoryTimer = 180; // Iniciamos un contador de 3 segundos (180 frames a 60fps)
                 createExplosion(
                     boss.x + boss.width / 2,
                     boss.y + boss.height / 2,
@@ -718,24 +715,61 @@ function drawInterface() {
     ctx.fillStyle = "#00ff66";
     ctx.font = "bold 44px Arial";
     ctx.textAlign = "center";
-    ctx.fillText("¡HAS GANADO!",canvas.width/2,GAME_HEIGHT/2);
+    ctx.fillText("¡Level 1 completed, eres el puto amo!",canvas.width/2,GAME_HEIGHT/2);
     }
 
 }
 
 function drawBackground() {
-    ctx.fillStyle = "#87CEEB"; ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
-    ctx.fillStyle = "#FFD700"; ctx.beginPath(); ctx.arc(800 - camera.x * 0.1, 60, 30, 0, Math.PI * 2); ctx.fill();
+    // 1. Cielo azul del nivel
+    ctx.fillStyle = "#87CEEB"; 
+    ctx.fillRect(0, 0, canvas.width, GAME_HEIGHT);
+    
+    // 2. Sol brillante con paralaje suave (más hacia el centro y libre de los marcadores)
+    // Usamos (camera.x * 0.15) para que se desplace despacito al caminar
+    let sunX = 500 - (camera.x * 0.15); 
+    let sunY = 90;
+    
+    ctx.fillStyle = "#FFD700"; 
+    ctx.beginPath(); 
+    ctx.arc(sunX, sunY, 35, 0, Math.PI * 2); 
+    ctx.fill();
+    
+    // Opcional: Un pequeño halo exterior para darle brillo
+    ctx.fillStyle = "rgba(255, 255, 0, 0.2)";
+    ctx.beginPath(); 
+    ctx.arc(sunX, sunY, 45, 0, Math.PI * 2); 
+    ctx.fill();
 }
 
 function drawGatifulis() {
     ctx.save();
     for (const c of gatifulis) {
         const bobbing = Math.sin((gameFrame + c.baseIndex) * 0.08) * 5;
-        const rX = c.x - camera.x + c.width / 2; const rY = c.y + bobbing + c.height / 2;
-        const pulseWidth = 10 + Math.abs(Math.sin(gameFrame * 0.1)) * 3;
-        ctx.fillStyle = "#FFD700"; ctx.strokeStyle = "#B8860B"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.ellipse(rX, rY, pulseWidth, 12, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        const rX = c.x - camera.x + c.width / 2; 
+        const rY = c.y + bobbing + c.height / 2;
+        
+        // 1. Círculo exterior dorado de la moneda
+        ctx.fillStyle = "#FFD700"; 
+        ctx.strokeStyle = "#DAA520"; 
+        ctx.lineWidth = 2;
+        ctx.beginPath(); 
+        ctx.arc(rX, rY, 14, 0, Math.PI * 2); 
+        ctx.fill(); 
+        ctx.stroke();
+
+        // 2. Círculo interior para dar relieve y contraste
+        ctx.fillStyle = "#f39c12";
+        ctx.beginPath();
+        ctx.arc(rX, rY, 10, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 3. Letra G grande, centrada y legible
+        ctx.fillStyle = "#FFFFFF"; 
+        ctx.font = "bold 15px Arial"; 
+        ctx.textAlign = "center"; 
+        ctx.textBaseline = "middle";
+        ctx.fillText("G", rX, rY + 1);
     }
     ctx.restore();
 }
@@ -855,9 +889,8 @@ function drawTouchPanel() {
         if (btn.label === "A") ctx.fillStyle = "#5dade2"; 
         else if (btn.label === "P") ctx.fillStyle = "#e67e22"; 
         else ctx.fillStyle = btn.active ? "#ff9900" : "#bbb";
-        ctx.font = "bold 26px Arial"; 
-        ctx.textAlign = "center"; 
-        ctx.textBaseline = "middle";
+        
+        ctx.font = "bold 22px Arial"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText(btn.label, btn.x, btn.y + 2);
     }
     ctx.restore();
@@ -866,7 +899,19 @@ function drawTouchPanel() {
 function gameLoop() {
     gameFrame++;
     
-    if (gameOverTimer > 0) {
+	if (victory) {
+        if (victoryTimer > 0) {
+            victoryTimer--;
+        } else {
+            // Cuando pasan los 3 segundos, se reinicia todo por completo
+            victory = false;
+            boss.lives = 25;
+            boss.active = true;
+            boss.x = 2700; // Vuelve a su posición inicial
+            spawnObjects(); // Resetea jugador, monedas, cofre y enemigos
+        }
+    }
+	    if (gameOverTimer > 0) {
         gameOverTimer--;
         if (gameOverTimer === 0) spawnObjects(); 
     } else {
