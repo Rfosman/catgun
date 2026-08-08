@@ -314,35 +314,104 @@ let boss = {
 };
 
 const bossBullets = [];
+// VARIABLES GLOBALES DE TODO EL JUEGO , VAMOONORRRRSLS UUUUEEEEEAA!!!!!!
+let transitionAlpha = 0; // Controla la opacidad del fundido a negro (de 0 a 1)
+let isTransitioning = false; // Indica si estamos en plena transición
 let victory = false;
 let victoryTimer = 0;
 let gameFrame = 0;
 let gameOverTimer = 0; 
+let currentLevel = 1; // Controla en qué nivel estamos
+let door = { x: 2850, y: 260, width: 40, height: 90, active: false }; // La puerta al derrotar al jefe
 
 function spawnObjects() {
-    enemies.length = 0; gatifulis.length = 0; bullets.length = 0; particles.length = 0;
+    enemies.length = 0; gatifulis.length = 0; bullets.length = 0; particles.length = 0; platforms.length = 0;
+    bossBullets.length = 0;
+    
     chest.opened = false;
     player.hasJetpack = false;
     actionButtons.action.visible = false;
     actionButtons.jetpack.visible = false;
-    player.lives = 5; player.gatifulis = 0;
-    player.x = 100; player.y = 100; player.vx = 0; player.vy = 0;
-    camera.x = 0;
     
-    enemies.push(
-        { x: 400, y: 200, width: 40, height: 50, vx: 1.5, minX: 300, maxX: 510 },
-        { x: 1050, y: 80, width: 40, height: 50, vx: 1.2, minX: 950, maxX: 1210 },
-        { x: 1400, y: 150, width: 40, height: 50, vx: -1.5, minX: 1350, maxX: 1560 },
-        { x: 1800, y: 220, width: 40, height: 50, vx: 2, minX: 1700, maxX: 1960 }
-    );
-    const coinPositions = [
-        {x: 150, y: 280}, {x: 420, y: 180}, {x: 750, y: 120},
-        {x: 1080, y: 70}, {x: 1470, y: 130}, {x: 1850, y: 200},
-        {x: 2170, y: 100}
-    ];
-    coinPositions.forEach(pos => {
-        gatifulis.push({ x: pos.x, y: pos.y, width: 20, height: 20, baseIndex: Math.random() * 100 });
-    });
+    if (currentLevel === 1) {
+        // --- CONFIGURACIÓN NIVEL 1 ---
+        player.lives = 5; 
+        player.gatifulis = 0;
+        player.x = 100; 
+        player.y = 100; 
+        player.vx = 0; 
+        player.vy = 0;
+        camera.x = 0;
+        victory = false;
+        door.active = false;
+
+        // Plataformas Nivel 1
+        platforms.push(
+            {x: 0, y: 350, width: 3000, height: 50}, 
+            {x: 300, y: 250, width: 250, height: 20},
+            {x: 650, y: 180, width: 200, height: 20},
+            {x: 950, y: 130, width: 300, height: 20},
+            {x: 1350, y: 200, width: 250, height: 20},
+            {x: 1700, y: 270, width: 300, height: 20},
+            {x: 2100, y: 180, width: 150, height: 220},
+            {x: 2970, y: 200, width: 30, height: 150}
+        );
+
+        // Enemigos Nivel 1
+        enemies.push(
+            { x: 400, y: 200, width: 40, height: 50, vx: 1.5, minX: 300, maxX: 510 },
+            { x: 1050, y: 80, width: 40, height: 50, vx: 1.2, minX: 950, maxX: 1210 },
+            { x: 1400, y: 150, width: 40, height: 50, vx: -1.5, minX: 1350, maxX: 1560 },
+            { x: 1800, y: 220, width: 40, height: 50, vx: 2, minX: 1700, maxX: 1960 }
+        );
+
+        // Monedas Nivel 1
+        const coinPositions = [
+            {x: 150, y: 280}, {x: 420, y: 180}, {x: 750, y: 120},
+            {x: 1080, y: 70}, {x: 1470, y: 130}, {x: 1850, y: 200},
+            {x: 2170, y: 100}
+        ];
+        coinPositions.forEach(pos => {
+            gatifulis.push({ x: pos.x, y: pos.y, width: 20, height: 20, baseIndex: Math.random() * 100 });
+        });
+
+        // Reiniciar Jefe
+        boss.x = 2700;
+        boss.y = 240;
+        boss.lives = 25;
+        boss.active = true;
+
+    } else if (currentLevel === 2) {
+        // --- CONFIGURACIÓN NIVEL 2 ---
+        player.lives = 5;     
+        player.gatifulis = 0;
+        player.x = 100; 
+        player.y = 100; 
+        player.vx = 0; 
+        player.vy = 0;
+        camera.x = 0;
+        victory = false;
+        door.active = false;
+
+        // Plataformas básicas para el Nivel 2 
+        platforms.push(
+            {x: 0, y: 350, width: 2000, height: 50},
+            {x: 400, y: 250, width: 200, height: 20},
+            {x: 800, y: 180, width: 200, height: 20}
+        );
+
+        // Sin jefe por ahora
+        boss.active = false;
+
+        // --- BURBUJA DE TEXTO PARA EL NIVEL 2 ---
+        level2Sign = {
+            x: 600,            // Posición X donde aparecerá flotando
+            y: 120,            // Posición Y
+            width: 280,
+            height: 60,
+            text: "Level 2 is coming soon!"
+        };
+    }
 }
 spawnObjects();
 
@@ -537,6 +606,15 @@ function updateObjects() {
         if (p.alpha <= 0) particles.splice(i, 1);
     }
 }
+function updateDoor() {
+    if (!door.active || isTransitioning) return;
+    
+    // Si el jugador choca con la puerta
+    if (checkCollision(player, door)) {
+        isTransitioning = true; // Activamos el fundido de salida
+        victory = false;        // Quitamos cualquier cartel que quedara
+    }
+}
 function updateBoss() {
 
     if (!boss.active || victory) return;
@@ -620,10 +698,11 @@ function updateBoss() {
             );
 
             if (boss.lives <= 0) {
-
                 boss.active = false;
-                victory = true;
-				victoryTimer = 180; // Iniciamos un contador de 3 segundos (180 frames a 60fps)
+                victory = true;     
+                door.active = true; 
+                victoryTimer = 180; // <--- 3 segundos de duración (60fps * 3)
+
                 createExplosion(
                     boss.x + boss.width / 2,
                     boss.y + boss.height / 2,
@@ -831,7 +910,86 @@ function drawPlayer() {
     ctx.fillStyle = "#ff3333"; ctx.fillRect(x + 38, y + 19, 6, 2);
     ctx.restore();
 }
+function drawLevel2Sign() {
+    // Solo se dibuja si estamos en el Nivel 2 y la burbuja existe
+    if (currentLevel !== 2 || !level2Sign) return;
 
+    const dx = level2Sign.x - camera.x;
+    const dy = level2Sign.y;
+
+    // Si la burbuja está fuera de la pantalla, nos ahorramos dibujarla
+    if (dx < -300 || dx > canvas.width + 300) return;
+
+    // Fondo de la burbuja (estilo cómic/retro)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.strokeStyle = "#ff00aa"; // Un borde llamativo (puedes cambiar el color)
+    ctx.lineWidth = 3;
+
+    // Dibujamos un rectángulo con esquinas redondeadas para el bocadillo
+    ctx.beginPath();
+    ctx.roundRect(dx, dy, level2Sign.width, level2Sign.height, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    // Pequeño triángulo del bocadillo apuntando hacia abajo
+    ctx.beginPath();
+    ctx.moveTo(dx + level2Sign.width / 2 - 10, dy + level2Sign.height);
+    ctx.lineTo(dx + level2Sign.width / 2, dy + level2Sign.height + 12);
+    ctx.lineTo(dx + level2Sign.width / 2 + 10, dy + level2Sign.height);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fill();
+    ctx.strokeStyle = "#ff00aa";
+    ctx.stroke();
+
+    // Texto del cartel
+    ctx.fillStyle = "#222222";
+    ctx.font = "bold 16px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+        level2Sign.text, 
+        dx + level2Sign.width / 2, 
+        dy + level2Sign.height / 2
+    );
+    
+    // Restauramos valores por defecto de texto por si acaso
+    ctx.textBaseline = "alphabetic";
+}
+function drawDoor() {
+    if (!door.active) return;
+    
+    const dx = door.x - camera.x;
+    const dy = door.y;
+
+    // Sombra exterior para darle profundidad
+    ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+    ctx.fillRect(dx - 6, dy - 6, door.width + 12, door.height + 12);
+
+    // Marco exterior de piedra/metal oscuro
+    ctx.fillStyle = "#22252a";
+    ctx.fillRect(dx - 4, dy - 4, door.width + 8, door.height + 4);
+    ctx.strokeStyle = "#4e5d6c";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(dx - 4, dy - 4, door.width + 8, door.height + 4);
+
+    // Interior del portal con brillo pulsante (varía suavemente con el tiempo)
+    let pulse = Math.sin(Date.now() / 200) * 0.2 + 0.8; // Oscila entre 0.6 y 1.0
+    ctx.fillStyle = `rgba(0, 240, 255, ${pulse})`;
+    ctx.fillRect(dx, dy, door.width, door.height);
+
+    // Remate central brillante (el núcleo del portal)
+    ctx.fillStyle = `rgba(255, 255, 255, ${pulse * 0.7})`;
+    ctx.fillRect(dx + 10, dy + 15, door.width - 20, door.height - 30);
+
+    // Texto indicador superior con estilo
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 13px Arial";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#00ffff";
+    ctx.shadowBlur = 8;
+    ctx.fillText("✨ NIVEL 2 ✨", dx + door.width/2, dy - 12);
+    ctx.shadowBlur = 0; // Limpiamos el efecto de sombra para que no afecte a lo demás
+}
 function drawEnemies() {
     for (const z of enemies) {
         const x = z.x - camera.x; const y = z.y;
@@ -903,15 +1061,26 @@ function gameLoop() {
         if (victoryTimer > 0) {
             victoryTimer--;
         } else {
-            // Cuando pasan los 3 segundos, se reinicia todo por completo
+            // Cuando pasan los 3 segundos, SOLO quitamos el cartel. 
+            // La puerta sigue abierta y el jefe muerto esperando a que el jugador cruce.
             victory = false;
-            boss.lives = 25;
-            boss.active = true;
-            boss.x = 2700; // Vuelve a su posición inicial
-            spawnObjects(); // Resetea jugador, monedas, cofre y enemigos
         }
     }
-	    if (gameOverTimer > 0) {
+	// Lógica del fundido de transición al Nivel 2
+    if (isTransitioning) {
+        transitionAlpha += 0.02; // Velocidad del fundido (cuanto mayor, más rápido)
+        if (transitionAlpha >= 1) {
+            transitionAlpha = 1;
+            currentLevel = 2;     // Cambiamos oficialmente al Nivel 2
+            spawnObjects();       // Cargamos el nuevo nivel con la pantalla en negro
+            isTransitioning = false; // Desactivamos el estado de transición para empezar a aclarar
+        }
+    } else if (transitionAlpha > 0) {
+        transitionAlpha -= 0.02; // Aclara la pantalla suavemente al aparecer en el Nivel 2
+        if (transitionAlpha < 0) transitionAlpha = 0;
+    }
+
+    if (gameOverTimer > 0) {
         gameOverTimer--;
         if (gameOverTimer === 0) spawnObjects(); 
     } else {
@@ -919,6 +1088,17 @@ function gameLoop() {
         updatePlayer();
         updateObjects();
         updateBoss();
+        updateDoor(); 
+    }
+    if (gameOverTimer > 0) {
+        gameOverTimer--;
+        if (gameOverTimer === 0) spawnObjects(); 
+    } else {
+        processJoystick(); 
+        updatePlayer();
+        updateObjects();
+        updateBoss();
+        updateDoor(); // <--- Comprueba si entramos en la puerta
     }
     
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -951,11 +1131,16 @@ function gameLoop() {
     );
     ctx.fill();
   }
-  
+	drawDoor();
     drawPlayer();
     drawInterface(); 
     drawTouchPanel();
-    
+	drawLevel2Sign(); // <--- ¡Añadido aquí para que se dibuje en el Nivel 2!
+    // Dibuja el fundido a negro si estamos transicionando
+    if (transitionAlpha > 0) {
+        ctx.fillStyle = `rgba(0, 0, 0, ${transitionAlpha})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     requestAnimationFrame(gameLoop);
 }
 
